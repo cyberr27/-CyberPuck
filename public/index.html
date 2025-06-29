@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <title>CyberPong</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+        background: #0d0d1a;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        font-family: "Courier New", monospace;
+        color: #00ffcc;
+      }
+      canvas {
+        border: 2px solid #ff007a;
+        box-shadow: 0 0 20px #ff007a;
+      }
+      #status {
+        position: absolute;
+        top: 20px;
+        color: #00ffcc;
+        text-shadow: 0 0 10px #00ffcc;
+        font-size: 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="status">Ожидание второго игрока...</div>
+    <script>
+      let ws;
+      let playerId = null;
+      let paddle1 = { y: 250, score: 0 }; // Левый игрок
+      let paddle2 = { y: 250, score: 0 }; // Правый игрок
+      let ball = { x: 400, y: 300, dx: 5, dy: 5 };
+      let gameState = "waiting";
+
+      function setup() {
+        createCanvas(800, 600);
+        ws = new WebSocket("wss://" + window.location.host + "/ws");
+
+        ws.onopen = () => {
+          console.log("Подключено к WebSocket");
+        };
+
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          if (data.type === "init") {
+            playerId = data.playerId;
+            document.getElementById(
+              "status"
+            ).innerText = `Вы игрок ${playerId}. Ожидание второго игрока...`;
+          } else if (data.type === "start") {
+            gameState = "playing";
+            document.getElementById(
+              "status"
+            ).innerText = `Игра началась! Счёт: ${paddle1.score} - ${paddle2.score}`;
+          } else if (data.type === "update") {
+            paddle1.y = data.paddle1.y;
+            paddle2.y = data.paddle2.y;
+            ball.x = data.ball.x;
+            ball.y = data.ball.y;
+            ball.dx = data.ball.dx;
+            ball.dy = data.ball.dy;
+            paddle1.score = data.paddle1.score;
+            paddle2.score = data.paddle2.score;
+            document.getElementById(
+              "status"
+            ).innerText = `Счёт: ${paddle1.score} - ${paddle2.score}`;
+          } else if (data.type === "gameOver") {
+            gameState = "gameOver";
+            document.getElementById(
+              "status"
+            ).innerText = `Игра окончена! Победил игрок ${data.winner}!`;
+          }
+        };
+
+        ws.onclose = () => {
+          document.getElementById("status").innerText =
+            "Соединение закрыто. Перезагрузите страницу.";
+        };
+      }
+
+      function draw() {
+        background(13, 13, 26); // Тёмный киберпанк-фон
+        // Неоновые борта
+        stroke(255, 0, 122);
+        strokeWeight(4);
+        line(0, 0, 800, 0);
+        line(0, 600, 800, 600);
+
+        // Ракетки
+        fill(0, 255, 204);
+        noStroke();
+        rect(20, paddle1.y, 20, 100); // Левая ракетка
+        rect(760, paddle2.y, 20, 100); // Правая ракетка
+
+        // Мяч
+        fill(255, 0, 122);
+        ellipse(ball.x, ball.y, 20, 20);
+
+        // Сетка посередине
+        stroke(0, 255, 204);
+        strokeWeight(2);
+        for (let y = 0; y < 600; y += 20) {
+          line(400, y, 400, y + 10);
+        }
+      }
+
+      function keyPressed() {
+        if (gameState !== "playing") return;
+        let move = null;
+        if (playerId === 1) {
+          if (key === "w" || key === "W") move = "up";
+          if (key === "s" || key === "S") move = "down";
+        } else if (playerId === 2) {
+          if (keyCode === UP_ARROW) move = "up";
+          if (keyCode === DOWN_ARROW) move = "down";
+        }
+        if (move) {
+          ws.send(JSON.stringify({ type: "move", direction: move }));
+        }
+      }
+    </script>
+  </body>
+</html>
