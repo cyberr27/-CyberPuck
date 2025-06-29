@@ -115,8 +115,8 @@ function updateGame() {
 function resetBall() {
   gameState.ball.x = 400;
   gameState.ball.y = 300;
-  gameState.ball.dx = 5 * (Math.random() > 0.5 ? 1 : -1);
-  gameState.ball.dy = 5 * (Math.random() > 0.5 ? 1 : -1);
+  gameState.ball.dx = 500 * (Math.random() > 0.5 ? 1 : -1);
+  gameState.ball.dy = 500 * (Math.random() > 0.5 ? 1 : -1);
 }
 
 function broadcast(data) {
