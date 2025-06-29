@@ -6,7 +6,7 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-app.use(express.static("public")); // Папка для index.html
+app.use(express.static("public"));
 
 let players = [];
 let gameState = {
@@ -15,7 +15,7 @@ let gameState = {
   ball: { x: 300, y: 400, dx: 0, dy: 0 },
   status: "waiting",
   startTime: null,
-  timer: 180, // 3 минуты
+  timer: 180,
   lastGoal: null,
 };
 
@@ -58,6 +58,10 @@ wss.on("connection", (ws) => {
     }
   });
 
+  ws.on("error", (error) => {
+    console.error("WebSocket error:", error);
+  });
+
   ws.on("close", () => {
     players = players.filter((player) => player !== ws);
     if (gameState.status === "playing") {
@@ -73,22 +77,18 @@ wss.on("connection", (ws) => {
 function updateGame() {
   if (gameState.status !== "playing") return;
 
-  // Обновление таймера
   gameState.timer = Math.max(
     0,
     180 - Math.floor((Date.now() - gameState.startTime) / 1000)
   );
 
-  // Обновление мяча
   gameState.ball.x += gameState.ball.dx;
   gameState.ball.y += gameState.ball.dy;
 
-  // Отскок от левых и правых стенок
   if (gameState.ball.x <= 10 || gameState.ball.x >= 590) {
     gameState.ball.dx *= -1;
   }
 
-  // Отскок от ракеток
   let hit = false;
   if (
     gameState.ball.y <= 40 &&
@@ -96,15 +96,15 @@ function updateGame() {
     gameState.ball.x >= gameState.paddle1.x &&
     gameState.ball.x <= gameState.paddle1.x + 100
   ) {
-    let hitPos = (gameState.ball.x - gameState.paddle1.x - 50) / 50; // -1..1
+    let hitPos = (gameState.ball.x - gameState.paddle1.x - 50) / 50;
     gameState.ball.dx = 6 * hitPos;
-    gameState.ball.dy = -Math.abs(gameState.ball.dy + 0.5) * 1.1; // Ускорение
+    gameState.ball.dy = -Math.abs(gameState.ball.dy + 0.5) * 1.1;
     gameState.ball.dx *= 1.1;
     if (Math.abs(gameState.ball.dx) > 15)
       gameState.ball.dx = 15 * Math.sign(gameState.ball.dx);
     if (Math.abs(gameState.ball.dy) > 15)
       gameState.ball.dy = 15 * Math.sign(gameState.ball.dy);
-    if (Math.abs(gameState.ball.dy) < 3) gameState.ball.dy = -3; // Минимальная скорость по Y
+    if (Math.abs(gameState.ball.dy) < 3) gameState.ball.dy = -3;
     hit = true;
   } else if (
     gameState.ball.y >= 760 &&
@@ -112,19 +112,18 @@ function updateGame() {
     gameState.ball.x >= gameState.paddle2.x &&
     gameState.ball.x <= gameState.paddle2.x + 100
   ) {
-    let hitPos = (gameState.ball.x - gameState.paddle2.x - 50) / 50; // -1..1
+    let hitPos = (gameState.ball.x - gameState.paddle2.x - 50) / 50;
     gameState.ball.dx = 6 * hitPos;
-    gameState.ball.dy = Math.abs(gameState.ball.dy + 0.5) * 1.1; // Ускорение
+    gameState.ball.dy = Math.abs(gameState.ball.dy + 0.5) * 1.1;
     gameState.ball.dx *= 1.1;
     if (Math.abs(gameState.ball.dx) > 15)
       gameState.ball.dx = 15 * Math.sign(gameState.ball.dx);
     if (Math.abs(gameState.ball.dy) > 15)
       gameState.ball.dy = 15 * Math.sign(gameState.ball.dy);
-    if (Math.abs(gameState.ball.dy) < 3) gameState.ball.dy = 3; // Минимальная скорость по Y
+    if (Math.abs(gameState.ball.dy) < 3) gameState.ball.dy = 3;
     hit = true;
   }
 
-  // Голы
   let goal = null;
   if (gameState.ball.y < 0) {
     gameState.paddle2.score += 1;
@@ -136,7 +135,6 @@ function updateGame() {
     resetBall(false);
   }
 
-  // Проверка окончания раунда
   if (gameState.timer <= 0) {
     let winner =
       gameState.paddle1.score > gameState.paddle2.score
@@ -145,8 +143,7 @@ function updateGame() {
         ? 2
         : 0;
     if (winner === 0) {
-      // Овертайм
-      gameState.timer = 60; // Ещё 1 минута
+      gameState.timer = 60;
       gameState.startTime = Date.now();
     } else {
       gameState.status = "gameOver";
@@ -187,7 +184,7 @@ function resetBall(isNewGame) {
     }
     gameState.lastGoal =
       gameState.paddle2.score > gameState.paddle1.score ? 2 : 1;
-  }, 1000); // Задержка 1 секунда
+  }, 1000);
 }
 
 function broadcast(data) {
@@ -198,7 +195,7 @@ function broadcast(data) {
   });
 }
 
-setInterval(updateGame, 1000 / 60); // 60 FPS
+setInterval(updateGame, 1000 / 60);
 
 server.listen(process.env.PORT || 3000, () => {
   console.log("Сервер запущен на порту", server.address().port);

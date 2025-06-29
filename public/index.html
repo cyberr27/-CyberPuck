@@ -51,11 +51,11 @@
     <script>
       let ws;
       let playerId = null;
-      let paddle1 = { x: 250, score: 0 }; // Верхний игрок
-      let paddle2 = { x: 250, score: 0 }; // Нижний игрок
+      let paddle1 = { x: 250, score: 0 };
+      let paddle2 = { x: 250, score: 0 };
       let ball = { x: 300, y: 400, dx: 0, dy: 0 };
       let gameState = "waiting";
-      let timer = 180; // 3 минуты в секундах
+      let timer = 180;
       let particles = [];
       let hitSound, goalSound;
       let canvasWidth = 600;
@@ -65,23 +65,25 @@
       let lastTouchX = null;
 
       function preload() {
-        hitSound = new p5.Oscillator("sine");
-        hitSound.amp(0);
-        hitSound.freq(440);
-        goalSound = new p5.Oscillator("triangle");
-        goalSound.amp(0);
-        goalSound.freq(220);
+        hitSound = loadSound("/sounds/hit.wav");
+        goalSound = loadSound("/sounds/goal.wav");
       }
 
       function setup() {
         let canvas = createCanvas(600, 800);
         canvas.style("width", "70vw");
         canvas.style("height", "90vh");
-        windowResized(); // Инициализация размеров при загрузке
+        windowResized();
         ws = new WebSocket("wss://" + window.location.host + "/ws");
 
         ws.onopen = () => {
           console.log("Подключено к WebSocket");
+        };
+
+        ws.onerror = (error) => {
+          console.error("WebSocket error:", error);
+          document.getElementById("status").innerText =
+            "Ошибка подключения к серверу!";
         };
 
         ws.onmessage = (event) => {
@@ -113,16 +115,11 @@
                 ball.y,
                 Math.abs(ball.dx) + Math.abs(ball.dy)
               );
-              hitSound.freq(440 + Math.abs(ball.dx) * 20); // Вариация звука
-              hitSound.amp(0.2, 0.1);
-              hitSound.start();
-              setTimeout(() => hitSound.amp(0, 0.1), 200);
+              hitSound.play();
             }
             if (data.goal) {
-              createParticles(ball.x, ball.y, 30); // Больше частиц при голе
-              goalSound.amp(0.3, 0.1);
-              goalSound.start();
-              setTimeout(() => goalSound.amp(0, 0.1), 500);
+              createParticles(ball.x, ball.y, 30);
+              goalSound.play();
             }
             document.getElementById(
               "status"
@@ -146,9 +143,7 @@
       }
 
       function draw() {
-        background(13, 13, 26); // Тёмный киберпанк-фон
-
-        // Текстура стола (сетка)
+        background(13, 13, 26);
         stroke(0, 255, 204, 50);
         strokeWeight(1);
         for (let x = 0; x < width; x += width / 30) {
@@ -157,31 +152,24 @@
         for (let y = 0; y < height; y += height / 40) {
           line(0, y, width, y);
         }
-
-        // Неоновые борта
         stroke(255, 0, 122);
         strokeWeight(4);
         line(0, 0, 0, height);
         line(width, 0, width, height);
-
-        // Сетка посередине
         stroke(0, 255, 204);
         strokeWeight(2);
         for (let x = 0; x < width; x += width / 30) {
           line(x, height / 2, x + width / 60, height / 2);
         }
-
-        // Ракетки
         fill(0, 255, 204);
         noStroke();
-        rect(paddle1.x, height * 0.025, paddleWidth, paddleHeight); // Верхняя ракетка
+        rect(paddle1.x, height * 0.025, paddleWidth, paddleHeight);
         rect(
           paddle2.x,
           height * 0.95 - paddleHeight,
           paddleWidth,
           paddleHeight
-        ); // Нижняя ракетка
-        // Эффект свечения
+        );
         drawingContext.shadowBlur = 15;
         drawingContext.shadowColor = "#00ffcc";
         rect(paddle1.x, height * 0.025, paddleWidth, paddleHeight);
@@ -192,8 +180,6 @@
           paddleHeight
         );
         drawingContext.shadowBlur = 0;
-
-        // След за мячом
         for (let i = 0; i < particles.length; i++) {
           if (particles[i].isTrail) {
             particles[i].update();
@@ -204,24 +190,18 @@
             }
           }
         }
-
-        // Мяч
         fill(255, 0, 122);
         ellipse(ball.x, ball.y, width * 0.033, width * 0.033);
         drawingContext.shadowBlur = 10;
         drawingContext.shadowColor = "#ff007a";
         ellipse(ball.x, ball.y, width * 0.033, width * 0.033);
         drawingContext.shadowBlur = 0;
-
-        // Создание частиц следа
         if (
           gameState === "playing" &&
           Math.abs(ball.dx) + Math.abs(ball.dy) > 5
         ) {
           createTrailParticle(ball.x, ball.y);
         }
-
-        // Частицы от ударов
         for (let i = particles.length - 1; i >= 0; i--) {
           if (!particles[i].isTrail) {
             particles[i].update();
@@ -237,8 +217,8 @@
         let newWidth = min(windowWidth * 0.7, windowHeight * 1.125 * 0.7);
         let newHeight = min(windowHeight * 0.9, newWidth * (8 / 6));
         resizeCanvas(newWidth, newHeight);
-        paddleWidth = width * 0.167; // 100/600
-        paddleHeight = height * 0.025; // 20/800
+        paddleWidth = width * 0.167;
+        paddleHeight = height * 0.025;
       }
 
       function keyPressed() {
@@ -278,7 +258,7 @@
       }
 
       function createParticles(x, y, intensity) {
-        let count = Math.floor(10 + intensity * 0.5); // Больше частиц при сильном ударе
+        let count = Math.min(20, Math.floor(10 + intensity * 0.5));
         for (let i = 0; i < count; i++) {
           particles.push(new Particle(x, y, false));
         }
