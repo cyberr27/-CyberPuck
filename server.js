@@ -12,10 +12,11 @@ let players = [];
 let gameState = {
   paddle1: { x: 250, score: 0 },
   paddle2: { x: 250, score: 0 },
-  ball: { x: 300, y: 400, dx: 5, dy: 5 },
+  ball: { x: 300, y: 400, dx: 0, dy: 0 },
   status: "waiting",
   startTime: null,
   timer: 180, // 3 минуты
+  lastGoal: null,
 };
 
 wss.on("connection", (ws) => {
@@ -33,7 +34,7 @@ wss.on("connection", (ws) => {
     gameState.status = "playing";
     gameState.startTime = Date.now();
     gameState.timer = 180;
-    resetBall();
+    resetBall(true);
     broadcast({ type: "start", timer: gameState.timer });
   }
 
@@ -93,13 +94,13 @@ function updateGame() {
     gameState.ball.x <= gameState.paddle1.x + 100
   ) {
     let hitPos = (gameState.ball.x - gameState.paddle1.x - 50) / 50; // -1..1
-    gameState.ball.dx = 5 * hitPos;
-    gameState.ball.dy = -Math.abs(gameState.ball.dy) * 1.05; // Ускорение
-    gameState.ball.dx *= 1.05;
-    if (Math.abs(gameState.ball.dx) > 12)
-      gameState.ball.dx = 12 * Math.sign(gameState.ball.dx);
-    if (Math.abs(gameState.ball.dy) > 12)
-      gameState.ball.dy = 12 * Math.sign(gameState.ball.dy);
+    gameState.ball.dx = 6 * hitPos;
+    gameState.ball.dy = -Math.abs(gameState.ball.dy) * 1.1; // Ускорение
+    gameState.ball.dx *= 1.1;
+    if (Math.abs(gameState.ball.dx) > 15)
+      gameState.ball.dx = 15 * Math.sign(gameState.ball.dx);
+    if (Math.abs(gameState.ball.dy) > 15)
+      gameState.ball.dy = 15 * Math.sign(gameState.ball.dy);
     hit = true;
   } else if (
     gameState.ball.y >= 760 &&
@@ -108,24 +109,26 @@ function updateGame() {
     gameState.ball.x <= gameState.paddle2.x + 100
   ) {
     let hitPos = (gameState.ball.x - gameState.paddle2.x - 50) / 50; // -1..1
-    gameState.ball.dx = 5 * hitPos;
-    gameState.ball.dy = Math.abs(gameState.ball.dy) * 1.05; // Ускорение
-    gameState.ball.dx *= 1.05;
-    if (Math.abs(gameState.ball.dx) > 12)
-      gameState.ball.dx = 12 * Math.sign(gameState.ball.dx);
-    if (Math.abs(gameState.ball.dy) > 12)
-      gameState.ball.dy = 12 * Math.sign(gameState.ball.dy);
-
+    gameState.ball.dx = 6 * hitPos;
+    gameState.ball.dy = Math.abs(gameState.ball.dy) * 1.1; // Ускорение
+    gameState.ball.dx *= 1.1;
+    if (Math.abs(gameState.ball.dx) > 15)
+      gameState.ball.dx = 15 * Math.sign(gameState.ball.dx);
+    if (Math.abs(gameState.ball.dy) > 15)
+      gameState.ball.dy = 15 * Math.sign(gameState.ball.dy);
     hit = true;
   }
 
   // Голы
+  let goal = null;
   if (gameState.ball.y < 0) {
     gameState.paddle2.score += 1;
-    resetBall();
+    goal = 2;
+    resetBall(false);
   } else if (gameState.ball.y > 800) {
     gameState.paddle1.score += 1;
-    resetBall();
+    goal = 1;
+    resetBall(false);
   }
 
   // Проверка окончания раунда
@@ -153,14 +156,33 @@ function updateGame() {
     ball: gameState.ball,
     timer: gameState.timer,
     hit,
+    goal,
   });
 }
 
-function resetBall() {
+function resetBall(isNewGame) {
   gameState.ball.x = 300;
   gameState.ball.y = 400;
-  gameState.ball.dx = 5 * (Math.random() > 0.5 ? 1 : -1);
-  gameState.ball.dy = 5 * (Math.random() > 0.5 ? 1 : -1);
+  if (isNewGame) {
+    // Случайное направление в начале игры
+    let angle = (Math.random() * Math.PI) / 2 + Math.PI / 4; // 45-135 градусов
+    if (Math.random() > 0.5) angle += Math.PI; // В другую сторону
+    gameState.ball.dx = 6 * Math.cos(angle);
+    gameState.ball.dy = 6 * Math.sin(angle);
+  } else {
+    // Направление в сторону забившего гол
+    let angle = (Math.random() * Math.PI) / 2 + Math.PI / 4; // 45-135 градусов
+    if (gameState.lastGoal === 2) {
+      // Игрок 2 забил, мяч летит к игроку 1
+      gameState.ball.dy = Math.abs(6 * Math.sin(angle));
+    } else {
+      // Игрок 1 забил, мяч летит к игроку 2
+      gameState.ball.dy = -Math.abs(6 * Math.sin(angle));
+    }
+    gameState.ball.dx = 6 * Math.cos(angle) * (Math.random() > 0.5 ? 1 : -1);
+  }
+  gameState.lastGoal =
+    gameState.paddle2.score > gameState.paddle1.score ? 2 : 1;
 }
 
 function broadcast(data) {

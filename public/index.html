@@ -2,8 +2,10 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <title>CyberPong</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CyberPuck</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/addons/p5.sound.min.js"></script>
     <style>
       body {
         margin: 0;
@@ -14,24 +16,32 @@
         height: 100vh;
         font-family: "Courier New", monospace;
         color: #00ffcc;
+        overflow: hidden;
       }
       canvas {
         border: 2px solid #ff007a;
         box-shadow: 0 0 20px #ff007a;
+        width: 70vw;
+        height: 90vh;
       }
       #status {
         position: absolute;
-        top: 20px;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
         color: #00ffcc;
         text-shadow: 0 0 10px #00ffcc;
-        font-size: 24px;
+        font-size: clamp(16px, 2vw, 24px);
+        text-align: center;
       }
       #timer {
         position: absolute;
-        top: 50px;
+        top: 40px;
+        left: 50%;
+        transform: translateX(-50%);
         color: #ff007a;
         text-shadow: 0 0 10px #ff007a;
-        font-size: 20px;
+        font-size: clamp(14px, 1.8vw, 20px);
       }
     </style>
   </head>
@@ -43,13 +53,31 @@
       let playerId = null;
       let paddle1 = { x: 250, score: 0 }; // Верхний игрок
       let paddle2 = { x: 250, score: 0 }; // Нижний игрок
-      let ball = { x: 300, y: 400, dx: 5, dy: 5 };
+      let ball = { x: 300, y: 400, dx: 0, dy: 0 };
       let gameState = "waiting";
       let timer = 180; // 3 минуты в секундах
       let particles = [];
+      let hitSound, goalSound;
+      let canvasWidth = 600;
+      let canvasHeight = 800;
+      let paddleWidth = 100;
+      let paddleHeight = 20;
+      let lastTouchX = null;
+
+      function preload() {
+        hitSound = new p5.Oscillator("sine");
+        hitSound.amp(0);
+        hitSound.freq(440);
+        goalSound = new p5.Oscillator("triangle");
+        goalSound.amp(0);
+        goalSound.freq(220);
+      }
 
       function setup() {
-        createCanvas(600, 800);
+        let canvas = createCanvas(600, 800);
+        canvas.style("width", "70vw");
+        canvas.style("height", "90vh");
+        windowResized(); // Инициализация размеров при загрузке
         ws = new WebSocket("wss://" + window.location.host + "/ws");
 
         ws.onopen = () => {
@@ -70,24 +98,32 @@
               "status"
             ).innerText = `Игра началась! Счёт: ${paddle1.score} - ${paddle2.score}`;
           } else if (data.type === "update") {
-            paddle1.x = data.paddle1.x;
-            paddle2.x = data.paddle2.x;
-            ball.x = data.ball.x;
-            ball.y = data.ball.y;
+            paddle1.x = data.paddle1.x * (width / canvasWidth);
+            paddle2.x = data.paddle2.x * (width / canvasWidth);
+            ball.x = data.ball.x * (width / canvasWidth);
+            ball.y = data.ball.y * (height / canvasHeight);
             ball.dx = data.ball.dx;
             ball.dy = data.ball.dy;
             paddle1.score = data.paddle1.score;
             paddle2.score = data.paddle2.score;
             timer = data.timer;
             if (data.hit) {
-              createParticles(data.ball.x, data.ball.y);
+              createParticles(ball.x, ball.y);
+              hitSound.amp(0.2, 0.1);
+              hitSound.start();
+              setTimeout(() => hitSound.amp(0, 0.1), 200);
+            }
+            if (data.goal) {
+              goalSound.amp(0.3, 0.1);
+              goalSound.start();
+              setTimeout(() => goalSound.amp(0, 0.1), 500);
             }
             document.getElementById(
               "status"
             ).innerText = `Счёт: ${paddle1.score} - ${paddle2.score}`;
             document.getElementById("timer").innerText = formatTime(timer);
           } else if (data.type === "gameOver") {
-            gameState = "gameOver";
+            gameState = PackageManager
             document.getElementById(
               "status"
             ).innerText = `Игра окончена! Победил игрок ${data.winner}!`;
@@ -109,44 +145,44 @@
         // Текстура стола (сетка)
         stroke(0, 255, 204, 50);
         strokeWeight(1);
-        for (let x = 0; x < 600; x += 20) {
-          line(x, 0, x, 800);
+        for (let x = 0; x < width; x += width / 30) {
+          line(x, 0, x, height);
         }
-        for (let y = 0; y < 800; y += 20) {
-          line(0, y, 600, y);
+        for (let y = 0; y < height; y += height / 40) {
+          line(0, y, width, y);
         }
 
         // Неоновые борта
         stroke(255, 0, 122);
         strokeWeight(4);
-        line(0, 0, 0, 800);
-        line(600, 0, 600, 800);
+        line(0, 0, 0, height);
+        line(width, 0, width, height);
 
         // Сетка посередине
         stroke(0, 255, 204);
         strokeWeight(2);
-        for (let x = 0; x < 600; x += 20) {
-          line(x, 400, x + 10, 400);
+        for (let x = 0; x < width; x += width / 30) {
+          line(x, height / 2, x + width / 60, height / 2);
         }
 
         // Ракетки
         fill(0, 255, 204);
         noStroke();
-        rect(paddle1.x, 20, 100, 20); // Верхняя ракетка
-        rect(paddle2.x, 760, 100, 20); // Нижняя ракетка
+        rect(paddle1.x, height * 0.025, paddleWidth, paddleHeight); // Верхняя ракетка
+        rect(paddle2.x, height * 0.95 - paddleHeight, paddleWidth, paddleHeight); // Нижняя ракетка
         // Эффект свечения
         drawingContext.shadowBlur = 15;
         drawingContext.shadowColor = "#00ffcc";
-        rect(paddle1.x, 20, 100, 20);
-        rect(paddle2.x, 760, 100, 20);
+        rect(paddle1.x, height * 0.025, paddleWidth, paddleHeight);
+        rect(paddle2.x, height * 0.95 - paddleHeight, paddleWidth, paddleHeight);
         drawingContext.shadowBlur = 0;
 
         // Мяч
         fill(255, 0, 122);
-        ellipse(ball.x, ball.y, 20, 20);
+        ellipse(ball.x, ball.y, width * 0.033, width * 0.033);
         drawingContext.shadowBlur = 10;
         drawingContext.shadowColor = "#ff007a";
-        ellipse(ball.x, ball.y, 20, 20);
+        ellipse(ball.x, ball.y, width * 0.033, width * 0.033);
         drawingContext.shadowBlur = 0;
 
         // Частицы
@@ -160,6 +196,14 @@
         }
       }
 
+      function windowResized() {
+        let newWidth = min(windowWidth * 0.7, windowHeight * 1.125 * 0.7);
+        let newHeight = min(windowHeight * 0.9, newWidth * (8 / 6));
+        resizeCanvas(newWidth, newHeight);
+        paddleWidth = width * 0.167; // 100/600
+        paddleHeight = height * 0.025; // 20/800
+      }
+
       function keyPressed() {
         if (gameState !== "playing") return;
         let move = null;
@@ -168,6 +212,24 @@
         if (move) {
           ws.send(JSON.stringify({ type: "move", direction: move }));
         }
+      }
+
+      function touchMoved() {
+        if (gameState !== "playing") return;
+        let touchX = mouseX;
+        if (lastTouchX !== null) {
+          let deltaX = touchX - lastTouchX;
+          let direction = deltaX < 0 ? "left" : deltaX > 0 ? "right" : null;
+          if (direction) {
+            ws.send(JSON.stringify({ type: "move", direction }));
+          }
+        }
+        lastTouchX = touchX;
+        return false;
+      }
+
+      function touchEnded() {
+        lastTouchX = null;
       }
 
       function formatTime(seconds) {
@@ -179,7 +241,7 @@
       }
 
       function createParticles(x, y) {
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 15; i++) {
           particles.push(new Particle(x, y));
         }
       }
@@ -188,9 +250,9 @@
         constructor(x, y) {
           this.x = x;
           this.y = y;
-          this.vx = random(-2, 2);
-          this.vy = random(-2, 2);
-          this.lifetime = 30;
+          this.vx = random(-3, 3);
+          this.vy = random(-3, 3);
+          this.lifetime = 40;
         }
         update() {
           this.x += this.vx;
@@ -199,8 +261,8 @@
         }
         show() {
           noStroke();
-          fill(255, 0, 122, this.lifetime * 8);
-          ellipse(this.x, this.y, 5, 5);
+          fill(255, 0, 122, this.lifetime * 6);
+          ellipse(this.x, this.y, width * 0.008, width * 0.008);
         }
       }
     </script>
