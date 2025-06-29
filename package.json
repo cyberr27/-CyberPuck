@@ -1,6 +1,7 @@
 {
   "name": "cyberpong",
   "version": "1.0.0",
+  "license": "MIT",
   "description": "Cyberpunk Pong game",
   "main": "server.js",
   "scripts": {
