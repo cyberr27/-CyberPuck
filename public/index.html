@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CyberPuck</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/addons/p5.sound.min.js"></script>
+    <script src="https://cf.jsdelivr.net/npm/p5@1.4.2/lib/addons/p5.sound.min.js"></script>
     <style>
       body {
         margin: 0;
@@ -108,12 +108,18 @@
             paddle2.score = data.paddle2.score;
             timer = data.timer;
             if (data.hit) {
-              createParticles(ball.x, ball.y);
+              createParticles(
+                ball.x,
+                ball.y,
+                Math.abs(ball.dx) + Math.abs(ball.dy)
+              );
+              hitSound.freq(440 + Math.abs(ball.dx) * 20); // Вариация звука
               hitSound.amp(0.2, 0.1);
               hitSound.start();
               setTimeout(() => hitSound.amp(0, 0.1), 200);
             }
             if (data.goal) {
+              createParticles(ball.x, ball.y, 30); // Больше частиц при голе
               goalSound.amp(0.3, 0.1);
               goalSound.start();
               setTimeout(() => goalSound.amp(0, 0.1), 500);
@@ -123,7 +129,7 @@
             ).innerText = `Счёт: ${paddle1.score} - ${paddle2.score}`;
             document.getElementById("timer").innerText = formatTime(timer);
           } else if (data.type === "gameOver") {
-            gameState = PackageManager
+            gameState = "gameOver";
             document.getElementById(
               "status"
             ).innerText = `Игра окончена! Победил игрок ${data.winner}!`;
@@ -169,13 +175,35 @@
         fill(0, 255, 204);
         noStroke();
         rect(paddle1.x, height * 0.025, paddleWidth, paddleHeight); // Верхняя ракетка
-        rect(paddle2.x, height * 0.95 - paddleHeight, paddleWidth, paddleHeight); // Нижняя ракетка
+        rect(
+          paddle2.x,
+          height * 0.95 - paddleHeight,
+          paddleWidth,
+          paddleHeight
+        ); // Нижняя ракетка
         // Эффект свечения
         drawingContext.shadowBlur = 15;
         drawingContext.shadowColor = "#00ffcc";
         rect(paddle1.x, height * 0.025, paddleWidth, paddleHeight);
-        rect(paddle2.x, height * 0.95 - paddleHeight, paddleWidth, paddleHeight);
+        rect(
+          paddle2.x,
+          height * 0.95 - paddleHeight,
+          paddleWidth,
+          paddleHeight
+        );
         drawingContext.shadowBlur = 0;
+
+        // След за мячом
+        for (let i = 0; i < particles.length; i++) {
+          if (particles[i].isTrail) {
+            particles[i].update();
+            particles[i].show();
+            if (particles[i].lifetime <= 0) {
+              particles.splice(i, 1);
+              i--;
+            }
+          }
+        }
 
         // Мяч
         fill(255, 0, 122);
@@ -185,13 +213,22 @@
         ellipse(ball.x, ball.y, width * 0.033, width * 0.033);
         drawingContext.shadowBlur = 0;
 
-        // Частицы
+        // Создание частиц следа
+        if (
+          gameState === "playing" &&
+          Math.abs(ball.dx) + Math.abs(ball.dy) > 5
+        ) {
+          createTrailParticle(ball.x, ball.y);
+        }
+
+        // Частицы от ударов
         for (let i = particles.length - 1; i >= 0; i--) {
-          let p = particles[i];
-          p.update();
-          p.show();
-          if (p.lifetime <= 0) {
-            particles.splice(i, 1);
+          if (!particles[i].isTrail) {
+            particles[i].update();
+            particles[i].show();
+            if (particles[i].lifetime <= 0) {
+              particles.splice(i, 1);
+            }
           }
         }
       }
@@ -240,19 +277,25 @@
           .padStart(2, "0")}`;
       }
 
-      function createParticles(x, y) {
-        for (let i = 0; i < 15; i++) {
-          particles.push(new Particle(x, y));
+      function createParticles(x, y, intensity) {
+        let count = Math.floor(10 + intensity * 0.5); // Больше частиц при сильном ударе
+        for (let i = 0; i < count; i++) {
+          particles.push(new Particle(x, y, false));
         }
       }
 
+      function createTrailParticle(x, y) {
+        particles.push(new Particle(x, y, true));
+      }
+
       class Particle {
-        constructor(x, y) {
+        constructor(x, y, isTrail) {
           this.x = x;
           this.y = y;
-          this.vx = random(-3, 3);
-          this.vy = random(-3, 3);
-          this.lifetime = 40;
+          this.vx = isTrail ? 0 : random(-3, 3);
+          this.vy = isTrail ? 0 : random(-3, 3);
+          this.lifetime = isTrail ? 10 : 40;
+          this.isTrail = isTrail;
         }
         update() {
           this.x += this.vx;
@@ -261,7 +304,7 @@
         }
         show() {
           noStroke();
-          fill(255, 0, 122, this.lifetime * 6);
+          fill(255, 0, 122, this.lifetime * (this.isTrail ? 3 : 6));
           ellipse(this.x, this.y, width * 0.008, width * 0.008);
         }
       }
