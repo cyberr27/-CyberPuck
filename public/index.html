@@ -26,20 +26,30 @@
         text-shadow: 0 0 10px #00ffcc;
         font-size: 24px;
       }
+      #timer {
+        position: absolute;
+        top: 50px;
+        color: #ff007a;
+        text-shadow: 0 0 10px #ff007a;
+        font-size: 20px;
+      }
     </style>
   </head>
   <body>
     <div id="status">Ожидание второго игрока...</div>
+    <div id="timer">03:00</div>
     <script>
       let ws;
       let playerId = null;
-      let paddle1 = { y: 250, score: 0 }; // Левый игрок
-      let paddle2 = { y: 250, score: 0 }; // Правый игрок
-      let ball = { x: 400, y: 300, dx: 5, dy: 5 };
+      let paddle1 = { x: 250, score: 0 }; // Верхний игрок
+      let paddle2 = { x: 250, score: 0 }; // Нижний игрок
+      let ball = { x: 300, y: 400, dx: 5, dy: 5 };
       let gameState = "waiting";
+      let timer = 180; // 3 минуты в секундах
+      let particles = [];
 
       function setup() {
-        createCanvas(800, 600);
+        createCanvas(600, 800);
         ws = new WebSocket("wss://" + window.location.host + "/ws");
 
         ws.onopen = () => {
@@ -55,26 +65,35 @@
             ).innerText = `Вы игрок ${playerId}. Ожидание второго игрока...`;
           } else if (data.type === "start") {
             gameState = "playing";
+            timer = data.timer;
             document.getElementById(
               "status"
             ).innerText = `Игра началась! Счёт: ${paddle1.score} - ${paddle2.score}`;
           } else if (data.type === "update") {
-            paddle1.y = data.paddle1.y;
-            paddle2.y = data.paddle2.y;
+            paddle1.x = data.paddle1.x;
+            paddle2.x = data.paddle2.x;
             ball.x = data.ball.x;
             ball.y = data.ball.y;
             ball.dx = data.ball.dx;
             ball.dy = data.ball.dy;
             paddle1.score = data.paddle1.score;
             paddle2.score = data.paddle2.score;
+            timer = data.timer;
+            if (data.hit) {
+              createParticles(data.ball.x, data.ball.y);
+            }
             document.getElementById(
               "status"
             ).innerText = `Счёт: ${paddle1.score} - ${paddle2.score}`;
+            document.getElementById("timer").innerText = formatTime(timer);
           } else if (data.type === "gameOver") {
             gameState = "gameOver";
             document.getElementById(
               "status"
             ).innerText = `Игра окончена! Победил игрок ${data.winner}!`;
+            document.getElementById("timer").innerText = "00:00";
+          } else if (data.type === "error") {
+            document.getElementById("status").innerText = data.message;
           }
         };
 
@@ -86,42 +105,102 @@
 
       function draw() {
         background(13, 13, 26); // Тёмный киберпанк-фон
+
+        // Текстура стола (сетка)
+        stroke(0, 255, 204, 50);
+        strokeWeight(1);
+        for (let x = 0; x < 600; x += 20) {
+          line(x, 0, x, 800);
+        }
+        for (let y = 0; y < 800; y += 20) {
+          line(0, y, 600, y);
+        }
+
         // Неоновые борта
         stroke(255, 0, 122);
         strokeWeight(4);
-        line(0, 0, 800, 0);
-        line(0, 600, 800, 600);
-
-        // Ракетки
-        fill(0, 255, 204);
-        noStroke();
-        rect(20, paddle1.y, 20, 100); // Левая ракетка
-        rect(760, paddle2.y, 20, 100); // Правая ракетка
-
-        // Мяч
-        fill(255, 0, 122);
-        ellipse(ball.x, ball.y, 20, 20);
+        line(0, 0, 0, 800);
+        line(600, 0, 600, 800);
 
         // Сетка посередине
         stroke(0, 255, 204);
         strokeWeight(2);
-        for (let y = 0; y < 600; y += 20) {
-          line(400, y, 400, y + 10);
+        for (let x = 0; x < 600; x += 20) {
+          line(x, 400, x + 10, 400);
+        }
+
+        // Ракетки
+        fill(0, 255, 204);
+        noStroke();
+        rect(paddle1.x, 20, 100, 20); // Верхняя ракетка
+        rect(paddle2.x, 760, 100, 20); // Нижняя ракетка
+        // Эффект свечения
+        drawingContext.shadowBlur = 15;
+        drawingContext.shadowColor = "#00ffcc";
+        rect(paddle1.x, 20, 100, 20);
+        rect(paddle2.x, 760, 100, 20);
+        drawingContext.shadowBlur = 0;
+
+        // Мяч
+        fill(255, 0, 122);
+        ellipse(ball.x, ball.y, 20, 20);
+        drawingContext.shadowBlur = 10;
+        drawingContext.shadowColor = "#ff007a";
+        ellipse(ball.x, ball.y, 20, 20);
+        drawingContext.shadowBlur = 0;
+
+        // Частицы
+        for (let i = particles.length - 1; i >= 0; i--) {
+          let p = particles[i];
+          p.update();
+          p.show();
+          if (p.lifetime <= 0) {
+            particles.splice(i, 1);
+          }
         }
       }
 
       function keyPressed() {
         if (gameState !== "playing") return;
         let move = null;
-        if (playerId === 1) {
-          if (key === "w" || key === "W") move = "up";
-          if (key === "s" || key === "S") move = "down";
-        } else if (playerId === 2) {
-          if (keyCode === UP_ARROW) move = "up";
-          if (keyCode === DOWN_ARROW) move = "down";
-        }
+        if (keyCode === LEFT_ARROW) move = "left";
+        if (keyCode === RIGHT_ARROW) move = "right";
         if (move) {
           ws.send(JSON.stringify({ type: "move", direction: move }));
+        }
+      }
+
+      function formatTime(seconds) {
+        let mins = Math.floor(seconds / 60);
+        let secs = Math.floor(seconds % 60);
+        return `${mins.toString().padStart(2, "0")}:${secs
+          .toString()
+          .padStart(2, "0")}`;
+      }
+
+      function createParticles(x, y) {
+        for (let i = 0; i < 10; i++) {
+          particles.push(new Particle(x, y));
+        }
+      }
+
+      class Particle {
+        constructor(x, y) {
+          this.x = x;
+          this.y = y;
+          this.vx = random(-2, 2);
+          this.vy = random(-2, 2);
+          this.lifetime = 30;
+        }
+        update() {
+          this.x += this.vx;
+          this.y += this.vy;
+          this.lifetime -= 1;
+        }
+        show() {
+          noStroke();
+          fill(255, 0, 122, this.lifetime * 8);
+          ellipse(this.x, this.y, 5, 5);
         }
       }
     </script>

@@ -10,10 +10,12 @@ app.use(express.static("public")); // Папка для index.html
 
 let players = [];
 let gameState = {
-  paddle1: { y: 250, score: 0 },
-  paddle2: { y: 250, score: 0 },
-  ball: { x: 400, y: 300, dx: 5, dy: 5 },
+  paddle1: { x: 250, score: 0 },
+  paddle2: { x: 250, score: 0 },
+  ball: { x: 300, y: 400, dx: 5, dy: 5 },
   status: "waiting",
+  startTime: null,
+  timer: 180, // 3 минуты
 };
 
 wss.on("connection", (ws) => {
@@ -29,22 +31,25 @@ wss.on("connection", (ws) => {
 
   if (players.length === 2) {
     gameState.status = "playing";
-    broadcast({ type: "start" });
+    gameState.startTime = Date.now();
+    gameState.timer = 180;
+    resetBall();
+    broadcast({ type: "start", timer: gameState.timer });
   }
 
   ws.on("message", (message) => {
     const data = JSON.parse(message);
     if (data.type === "move") {
       if (playerId === 1) {
-        if (data.direction === "up" && gameState.paddle1.y > 0)
-          gameState.paddle1.y -= 10;
-        if (data.direction === "down" && gameState.paddle1.y < 500)
-          gameState.paddle1.y += 10;
+        if (data.direction === "left" && gameState.paddle1.x > 0)
+          gameState.paddle1.x -= 10;
+        if (data.direction === "right" && gameState.paddle1.x < 500)
+          gameState.paddle1.x += 10;
       } else if (playerId === 2) {
-        if (data.direction === "up" && gameState.paddle2.y > 0)
-          gameState.paddle2.y -= 10;
-        if (data.direction === "down" && gameState.paddle2.y < 500)
-          gameState.paddle2.y += 10;
+        if (data.direction === "left" && gameState.paddle2.x > 0)
+          gameState.paddle2.x -= 10;
+        if (data.direction === "right" && gameState.paddle2.x < 500)
+          gameState.paddle2.x += 10;
       }
     }
   });
@@ -64,44 +69,81 @@ wss.on("connection", (ws) => {
 function updateGame() {
   if (gameState.status !== "playing") return;
 
+  // Обновление таймера
+  gameState.timer = Math.max(
+    0,
+    180 - Math.floor((Date.now() - gameState.startTime) / 1000)
+  );
+
+  // Обновление мяча
   gameState.ball.x += gameState.ball.dx;
   gameState.ball.y += gameState.ball.dy;
 
-  // Отскок от верхнего и нижнего борта
-  if (gameState.ball.y <= 10 || gameState.ball.y >= 590) {
-    gameState.ball.dy *= -1;
-  }
-
-  // Отскок от ракеток
-  if (
-    (gameState.ball.x <= 40 &&
-      gameState.ball.x >= 30 &&
-      gameState.ball.y >= gameState.paddle1.y &&
-      gameState.ball.y <= gameState.paddle1.y + 100) ||
-    (gameState.ball.x >= 760 &&
-      gameState.ball.x <= 770 &&
-      gameState.ball.y >= gameState.paddle2.y &&
-      gameState.ball.y <= gameState.paddle2.y + 100)
-  ) {
+  // Отскок от левых и правых стенок
+  if (gameState.ball.x <= 10 || gameState.ball.x >= 590) {
     gameState.ball.dx *= -1;
   }
 
+  // Отскок от ракеток
+  let hit = false;
+  if (
+    gameState.ball.y <= 40 &&
+    gameState.ball.y >= 30 &&
+    gameState.ball.x >= gameState.paddle1.x &&
+    gameState.ball.x <= gameState.paddle1.x + 100
+  ) {
+    let hitPos = (gameState.ball.x - gameState.paddle1.x - 50) / 50; // -1..1
+    gameState.ball.dx = 5 * hitPos;
+    gameState.ball.dy = -Math.abs(gameState.ball.dy) * 1.05; // Ускорение
+    gameState.ball.dx *= 1.05;
+    if (Math.abs(gameState.ball.dx) > 12)
+      gameState.ball.dx = 12 * Math.sign(gameState.ball.dx);
+    if (Math.abs(gameState.ball.dy) > 12)
+      gameState.ball.dy = 12 * Math.sign(gameState.ball.dy);
+    hit = true;
+  } else if (
+    gameState.ball.y >= 760 &&
+    gameState.ball.y <= 770 &&
+    gameState.ball.x >= gameState.paddle2.x &&
+    gameState.ball.x <= gameState.paddle2.x + 100
+  ) {
+    let hitPos = (gameState.ball.x - gameState.paddle2.x - 50) / 50; // -1..1
+    gameState.ball.dx = 5 * hitPos;
+    gameState.ball.dy = Math.abs(gameState.ball.dy) * 1.05; // Ускорение
+    gameState.ball.dx *= 1.05;
+    if (Math.abs(gameState.ball.dx) > 12)
+      gameState.ball.dx = 12 * Math.sign(gameState.ball.dx);
+    if (Math.abs(gameState.ball.dy) > 12)
+      gameState.ball.dy = 12 * Math.sign(gameState.ball.dy);
+
+    hit = true;
+  }
+
   // Голы
-  if (gameState.ball.x < 0) {
+  if (gameState.ball.y < 0) {
     gameState.paddle2.score += 1;
     resetBall();
-  } else if (gameState.ball.x > 800) {
+  } else if (gameState.ball.y > 800) {
     gameState.paddle1.score += 1;
     resetBall();
   }
 
-  // Победа
-  if (gameState.paddle1.score >= 5) {
-    gameState.status = "gameOver";
-    broadcast({ type: "gameOver", winner: 1 });
-  } else if (gameState.paddle2.score >= 5) {
-    gameState.status = "gameOver";
-    broadcast({ type: "gameOver", winner: 2 });
+  // Проверка окончания раунда
+  if (gameState.timer <= 0) {
+    let winner =
+      gameState.paddle1.score > gameState.paddle2.score
+        ? 1
+        : gameState.paddle2.score > gameState.paddle1.score
+        ? 2
+        : 0;
+    if (winner === 0) {
+      // Овертайм
+      gameState.timer = 60; // Ещё 1 минута
+      gameState.startTime = Date.now();
+    } else {
+      gameState.status = "gameOver";
+      broadcast({ type: "gameOver", winner });
+    }
   }
 
   broadcast({
@@ -109,14 +151,16 @@ function updateGame() {
     paddle1: gameState.paddle1,
     paddle2: gameState.paddle2,
     ball: gameState.ball,
+    timer: gameState.timer,
+    hit,
   });
 }
 
 function resetBall() {
-  gameState.ball.x = 400;
-  gameState.ball.y = 300;
-  gameState.ball.dx = 500 * (Math.random() > 0.5 ? 1 : -1);
-  gameState.ball.dy = 500 * (Math.random() > 0.5 ? 1 : -1);
+  gameState.ball.x = 300;
+  gameState.ball.y = 400;
+  gameState.ball.dx = 5 * (Math.random() > 0.5 ? 1 : -1);
+  gameState.ball.dy = 5 * (Math.random() > 0.5 ? 1 : -1);
 }
 
 function broadcast(data) {
