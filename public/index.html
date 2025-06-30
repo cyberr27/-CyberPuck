@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CyberPuck</title>
+    <title>CyberPong</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/addons/p5.sound.min.js"></script>
     <style>
@@ -34,7 +34,7 @@
         font-size: clamp(16px, 2vw, 24px);
         text-align: center;
       }
-      #timer {
+      #server {
         position: absolute;
         top: 40px;
         left: 50%;
@@ -47,30 +47,33 @@
   </head>
   <body>
     <div id="status">Ожидание второго игрока...</div>
-    <div id="timer">03:00</div>
+    <div id="server">Подача: Игрок 1</div>
     <script>
       let ws;
       let playerId = null;
-      let paddle1 = { x: 250, score: 0 };
-      let paddle2 = { x: 250, score: 0 };
-      let ball = { x: 300, y: 400, dx: 0, dy: 0 };
+      let paddle1 = { x: 400, y: 30, score: 0 };
+      let paddle2 = { x: 400, y: 420, score: 0 };
+      let ball = { x: 450, y: 225, dx: 0, dy: 0, spin: 0 };
       let gameState = "waiting";
-      let timer = 180;
+      let servingPlayer = 1;
+      let serveTimer = 10;
       let particles = [];
-      let hitSound, goalSound;
-      let canvasWidth = 600;
-      let canvasHeight = 800;
-      let paddleWidth = 100;
-      let paddleHeight = 20;
+      let hitSound, tableSound, goalSound;
+      let canvasWidth = 900;
+      let canvasHeight = 450;
+      let paddleWidth = 60;
+      let paddleHeight = 15;
       let lastTouchX = null;
+      let lastTouchY = null;
 
       function preload() {
         hitSound = loadSound("/sounds/hit.mp3");
+        tableSound = loadSound("/sounds/table.mp3");
         goalSound = loadSound("/sounds/goal.mp3");
       }
 
       function setup() {
-        let canvas = createCanvas(600, 800);
+        let canvas = createCanvas(canvasWidth, canvasHeight);
         canvas.style("width", "70vw");
         canvas.style("height", "90vh");
         windowResized();
@@ -95,20 +98,28 @@
             ).innerText = `Вы игрок ${playerId}. Ожидание второго игрока...`;
           } else if (data.type === "start") {
             gameState = "playing";
-            timer = data.timer;
+            servingPlayer = data.servingPlayer;
+            serveTimer = data.serveTimer;
             document.getElementById(
               "status"
-            ).innerText = `Игра началась! Счёт: ${paddle1.score} - ${paddle2.score}`;
+            ).innerText = `Счёт: ${paddle1.score} - ${paddle2.score}`;
+            document.getElementById(
+              "server"
+            ).innerText = `Подача: Игрок ${servingPlayer}`;
           } else if (data.type === "update") {
             paddle1.x = data.paddle1.x * (width / canvasWidth);
+            paddle1.y = data.paddle1.y * (height / canvasHeight);
             paddle2.x = data.paddle2.x * (width / canvasWidth);
+            paddle2.y = data.paddle2.y * (height / canvasHeight);
             ball.x = data.ball.x * (width / canvasWidth);
             ball.y = data.ball.y * (height / canvasHeight);
             ball.dx = data.ball.dx;
             ball.dy = data.ball.dy;
+            ball.spin = data.ball.spin;
             paddle1.score = data.paddle1.score;
             paddle2.score = data.paddle2.score;
-            timer = data.timer;
+            servingPlayer = data.servingPlayer;
+            serveTimer = data.serveTimer;
             if (data.hit) {
               createParticles(
                 ball.x,
@@ -117,6 +128,10 @@
               );
               hitSound.play();
             }
+            if (data.tableHit) {
+              createParticles(ball.x, ball.y, 10);
+              tableSound.play();
+            }
             if (data.goal) {
               createParticles(ball.x, ball.y, 30);
               goalSound.play();
@@ -124,13 +139,15 @@
             document.getElementById(
               "status"
             ).innerText = `Счёт: ${paddle1.score} - ${paddle2.score}`;
-            document.getElementById("timer").innerText = formatTime(timer);
+            document.getElementById(
+              "server"
+            ).innerText = `Подача: Игрок ${servingPlayer}`;
           } else if (data.type === "gameOver") {
             gameState = "gameOver";
             document.getElementById(
               "status"
             ).innerText = `Игра окончена! Победил игрок ${data.winner}!`;
-            document.getElementById("timer").innerText = "00:00";
+            document.getElementById("server").innerText = "";
           } else if (data.type === "error") {
             document.getElementById("status").innerText = data.message;
           }
@@ -144,89 +161,89 @@
 
       function draw() {
         background(13, 13, 26);
+        // Рисуем сетку
+        stroke(0, 255, 204);
+        strokeWeight(2);
+        line(width / 2, 0, width / 2, height);
+        fill(255, 0, 122);
+        rect(width / 2 - 5, height / 2 - 15, 10, 30);
+        // Рисуем стол
         stroke(0, 255, 204, 50);
         strokeWeight(1);
         for (let x = 0; x < width; x += width / 30) {
           line(x, 0, x, height);
         }
-        for (let y = 0; y < height; y += height / 40) {
+        for (let y = 0; y < height; y += height / 20) {
           line(0, y, width, y);
         }
         stroke(255, 0, 122);
         strokeWeight(4);
         line(0, 0, 0, height);
         line(width, 0, width, height);
-        stroke(0, 255, 204);
-        strokeWeight(2);
-        for (let x = 0; x < width; x += width / 30) {
-          line(x, height / 2, x + width / 60, height / 2);
-        }
+        line(0, height / 2, width, height / 2);
+        // Рисуем ракеты
         fill(0, 255, 204);
         noStroke();
-        rect(paddle1.x, height * 0.025, paddleWidth, paddleHeight);
-        rect(
-          paddle2.x,
-          height * 0.95 - paddleHeight,
-          paddleWidth,
-          paddleHeight
-        );
+        rect(paddle1.x, paddle1.y, paddleWidth, paddleHeight);
+        rect(paddle2.x, paddle2.y, paddleWidth, paddleHeight);
         drawingContext.shadowBlur = 15;
         drawingContext.shadowColor = "#00ffcc";
-        rect(paddle1.x, height * 0.025, paddleWidth, paddleHeight);
-        rect(
-          paddle2.x,
-          height * 0.95 - paddleHeight,
-          paddleWidth,
-          paddleHeight
-        );
+        rect(paddle1.x, paddle1.y, paddleWidth, paddleHeight);
+        rect(paddle2.x, paddle2.y, paddleWidth, paddleHeight);
         drawingContext.shadowBlur = 0;
-        for (let i = 0; i < particles.length; i++) {
-          if (particles[i].isTrail) {
-            particles[i].update();
-            particles[i].show();
-            if (particles[i].lifetime <= 0) {
-              particles.splice(i, 1);
-              i--;
-            }
+        // Рисуем частицы
+        for (let i = particles.length - 1; i >= 0; i--) {
+          particles[i].update();
+          particles[i].show();
+          if (particles[i].lifetime <= 0) {
+            particles.splice(i, 1);
           }
         }
+        // Рисуем мяч
         fill(255, 0, 122);
-        ellipse(ball.x, ball.y, width * 0.033, width * 0.033);
+        ellipse(ball.x, ball.y, width * 0.0167, width * 0.0167);
         drawingContext.shadowBlur = 10;
         drawingContext.shadowColor = "#ff007a";
-        ellipse(ball.x, ball.y, width * 0.033, width * 0.033);
+        ellipse(ball.x, ball.y, width * 0.0167, width * 0.0167);
         drawingContext.shadowBlur = 0;
-        if (
-          gameState === "playing" &&
-          Math.abs(ball.dx) + Math.abs(ball.dy) > 5
-        ) {
-          createTrailParticle(ball.x, ball.y);
-        }
-        for (let i = particles.length - 1; i >= 0; i--) {
-          if (!particles[i].isTrail) {
-            particles[i].update();
-            particles[i].show();
-            if (particles[i].lifetime <= 0) {
-              particles.splice(i, 1);
-            }
-          }
-        }
       }
 
       function windowResized() {
-        let newWidth = min(windowWidth * 0.7, windowHeight * 1.125 * 0.7);
-        let newHeight = min(windowHeight * 0.9, newWidth * (8 / 6));
+        let newWidth = min(windowWidth * 0.7, windowHeight * 2 * 0.7);
+        let newHeight = min(windowHeight * 0.9, newWidth * 0.5);
         resizeCanvas(newWidth, newHeight);
-        paddleWidth = width * 0.167;
-        paddleHeight = height * 0.025;
+        paddleWidth = width * 0.0667;
+        paddleHeight = height * 0.0333;
       }
 
       function keyPressed() {
-        if (gameState !== "playing") return;
-        let move = null;
-        if (keyCode === LEFT_ARROW) move = "left";
-        if (keyCode === RIGHT_ARROW) move = "right";
-        if (move) {
+        if (gameState !== "playing") {
+          return;
+        }
+        let move = {};
+        if (keyCode === LEFT_ARROW) move.x = -10;
+        if (keyCode === RIGHT_ARROW) move.x = 10;
+        if (keyCode === UP_ARROW && playerId === 1 && paddle1.y > 0)
+          move.y = -5;
+        if (
+          keyCode === DOWN_ARROW &&
+          playerId === 1 &&
+          paddle1.y < height / 2 - paddleHeight
+        )
+          move.y = 5;
+        if (keyCode === UP_ARROW && playerId === 2 && paddle2.y > height / 2)
+          move.y = -5;
+        if (
+          keyCode === DOWN_ARROW &&
+          playerId === 2 &&
+          paddle2.y < height - paddleHeight
+        )
+          move.y = 5;
+        if (keyCode === 32 && playerId === servingPlayer) {
+          // Пробел для подачи
+          ws.send(JSON.stringify({ type: "serve", charge: 1 }));
+        }
+        if (move.x || move.y) {
           ws.send(JSON.stringify({ type: "move", direction: move }));
         }
       }
@@ -234,48 +251,58 @@
       function touchMoved() {
         if (gameState !== "playing") return;
         let touchX = mouseX;
+        let touchY = mouseY;
+        let move = {};
         if (lastTouchX !== null) {
           let deltaX = touchX - lastTouchX;
-          let direction = deltaX < 0 ? "left" : deltaX > 0 ? "right" : null;
-          if (direction) {
-            ws.send(JSON.stringify({ type: "move", direction }));
+          let deltaY = touchY - lastTouchY;
+          move.x = deltaX < 0 ? -10 : deltaX > 0 ? 10 : 0;
+          if (playerId === 1 && deltaY !== 0) {
+            move.y =
+              deltaY < 0 && paddle1.y > 0
+                ? -5
+                : deltaY > 0 && paddle1.y < height / 2 - paddleHeight
+                ? 5
+                : 0;
+          } else if (playerId === 2 && deltaY !== 0) {
+            move.y =
+              deltaY < 0 && paddle2.y > height / 2
+                ? -5
+                : deltaY > 0 && paddle2.y < height - paddleHeight
+                ? 5
+                : 0;
+          }
+          if (move.x || move.y) {
+            ws.send(JSON.stringify({ type: "move", direction: move }));
           }
         }
         lastTouchX = touchX;
+        lastTouchY = touchY;
         return false;
       }
 
       function touchEnded() {
+        if (gameState === "playing" && playerId === servingPlayer) {
+          ws.send(JSON.stringify({ type: "serve", charge: 1 }));
+        }
         lastTouchX = null;
-      }
-
-      function formatTime(seconds) {
-        let mins = Math.floor(seconds / 60);
-        let secs = Math.floor(seconds % 60);
-        return `${mins.toString().padStart(2, "0")}:${secs
-          .toString()
-          .padStart(2, "0")}`;
+        lastTouchY = null;
       }
 
       function createParticles(x, y, intensity) {
         let count = Math.min(20, Math.floor(10 + intensity * 0.5));
         for (let i = 0; i < count; i++) {
-          particles.push(new Particle(x, y, false));
+          particles.push(new Particle(x, y));
         }
       }
 
-      function createTrailParticle(x, y) {
-        particles.push(new Particle(x, y, true));
-      }
-
       class Particle {
-        constructor(x, y, isTrail) {
+        constructor(x, y) {
           this.x = x;
           this.y = y;
-          this.vx = isTrail ? 0 : random(-3, 3);
-          this.vy = isTrail ? 0 : random(-3, 3);
-          this.lifetime = isTrail ? 10 : 40;
-          this.isTrail = isTrail;
+          this.vx = random(-3, 3);
+          this.vy = random(-3, 3);
+          this.lifetime = 40;
         }
         update() {
           this.x += this.vx;
@@ -284,7 +311,7 @@
         }
         show() {
           noStroke();
-          fill(255, 0, 122, this.lifetime * (this.isTrail ? 3 : 6));
+          fill(255, 0, 122, this.lifetime * 6);
           ellipse(this.x, this.y, width * 0.008, width * 0.008);
         }
       }

@@ -10,12 +10,13 @@ app.use(express.static("public"));
 
 let players = [];
 let gameState = {
-  paddle1: { x: 250, score: 0 },
-  paddle2: { x: 250, score: 0 },
-  ball: { x: 300, y: 400, dx: 0, dy: 0 },
+  paddle1: { x: 400, y: 30, score: 0 },
+  paddle2: { x: 400, y: 420, score: 0 },
+  ball: { x: 450, y: 225, dx: 0, dy: 0, spin: 0 },
   status: "waiting",
-  startTime: null,
-  timer: 180,
+  servingPlayer: 1,
+  serveTimer: 10,
+  tableHits: { player1: 0, player2: 0 },
   lastGoal: null,
 };
 
@@ -32,10 +33,14 @@ wss.on("connection", (ws) => {
 
   if (players.length === 2) {
     gameState.status = "playing";
-    gameState.startTime = Date.now();
-    gameState.timer = 180;
+    gameState.servingPlayer = 1;
+    gameState.serveTimer = 10;
     resetBall(true);
-    broadcast({ type: "start", timer: gameState.timer });
+    broadcast({
+      type: "start",
+      servingPlayer: gameState.servingPlayer,
+      serveTimer: gameState.serveTimer,
+    });
   }
 
   ws.on("message", (message) => {
@@ -43,18 +48,36 @@ wss.on("connection", (ws) => {
       typeof message === "string"
         ? JSON.parse(message)
         : JSON.parse(message.toString());
-    if (data.type === "move") {
+    if (data.type === "move" && gameState.status === "playing") {
       if (playerId === 1) {
-        if (data.direction === "left" && gameState.paddle1.x > 0)
-          gameState.paddle1.x -= 10;
-        if (data.direction === "right" && gameState.paddle1.x < 500)
-          gameState.paddle1.x += 10;
+        if (data.direction.x < 0 && gameState.paddle1.x > 0)
+          gameState.paddle1.x += data.direction.x;
+        if (data.direction.x > 0 && gameState.paddle1.x < 840)
+          gameState.paddle1.x += data.direction.x;
+        if (data.direction.y < 0 && gameState.paddle1.y > 0)
+          gameState.paddle1.y += data.direction.y;
+        if (data.direction.y > 0 && gameState.paddle1.y < 210)
+          gameState.paddle1.y += data.direction.y;
       } else if (playerId === 2) {
-        if (data.direction === "left" && gameState.paddle2.x > 0)
-          gameState.paddle2.x -= 10;
-        if (data.direction === "right" && gameState.paddle2.x < 500)
-          gameState.paddle2.x += 10;
+        if (data.direction.x < 0 && gameState.paddle2.x > 0)
+          gameState.paddle2.x += data.direction.x;
+        if (data.direction.x > 0 && gameState.paddle2.x < 840)
+          gameState.paddle2.x += data.direction.x;
+        if (data.direction.y < 0 && gameState.paddle2.y > 240)
+          gameState.paddle2.y += data.direction.y;
+        if (data.direction.y > 0 && gameState.paddle2.y < 435)
+          gameState.paddle2.y += data.direction.y;
       }
+    } else if (data.type === "serve" && playerId === gameState.servingPlayer) {
+      let angle = (Math.random() * Math.PI) / 4 + Math.PI / 8;
+      let speed = 6 * data.charge;
+      gameState.ball.dx =
+        speed * Math.cos(angle) * (Math.random() > 0.5 ? 1 : -1);
+      gameState.ball.dy =
+        playerId === 1 ? speed * Math.sin(angle) : -speed * Math.sin(angle);
+      gameState.ball.spin = 0;
+      gameState.serveTimer = 10;
+      gameState.tableHits = { player1: 0, player2: 0 };
     }
   });
 
@@ -77,78 +100,120 @@ wss.on("connection", (ws) => {
 function updateGame() {
   if (gameState.status !== "playing") return;
 
-  gameState.timer = Math.max(
-    0,
-    180 - Math.floor((Date.now() - gameState.startTime) / 1000)
-  );
+  if (
+    gameState.serveTimer > 0 &&
+    gameState.ball.dx === 0 &&
+    gameState.ball.dy === 0
+  ) {
+    gameState.serveTimer -= 1 / 60;
+    if (gameState.serveTimer <= 0) {
+      gameState.servingPlayer = gameState.servingPlayer === 1 ? 2 : 1;
+      resetBall(false);
+    }
+  } else {
+    gameState.ball.x += gameState.ball.dx;
+    gameState.ball.y += gameState.ball.dy;
+    gameState.ball.dx += gameState.ball.spin * 0.1;
+  }
 
-  gameState.ball.x += gameState.ball.dx;
-  gameState.ball.y += gameState.ball.dy;
-
-  if (gameState.ball.x <= 10 || gameState.ball.x >= 590) {
+  if (gameState.ball.x <= 15 || gameState.ball.x >= 885) {
     gameState.ball.dx *= -1;
+    gameState.ball.spin *= -0.5;
   }
 
   let hit = false;
+  let tableHit = false;
   if (
-    gameState.ball.y <= 40 &&
+    gameState.ball.y <= 45 &&
     gameState.ball.y >= 30 &&
     gameState.ball.x >= gameState.paddle1.x &&
-    gameState.ball.x <= gameState.paddle1.x + 100
+    gameState.ball.x <= gameState.paddle1.x + 60
   ) {
-    let hitPos = (gameState.ball.x - gameState.paddle1.x - 50) / 50;
+    let hitPos = (gameState.ball.x - gameState.paddle1.x - 30) / 30;
     gameState.ball.dx = 6 * hitPos;
     gameState.ball.dy = -Math.abs(gameState.ball.dy + 0.5) * 1.1;
+    gameState.ball.spin = hitPos * 2;
     gameState.ball.dx *= 1.1;
-    if (Math.abs(gameState.ball.dx) > 15)
-      gameState.ball.dx = 15 * Math.sign(gameState.ball.dx);
-    if (Math.abs(gameState.ball.dy) > 15)
-      gameState.ball.dy = 15 * Math.sign(gameState.ball.dy);
-    if (Math.abs(gameState.ball.dy) < 3) gameState.ball.dy = -3;
+    if (Math.abs(gameState.ball.dx) > 12)
+      gameState.ball.dx = 12 * Math.sign(gameState.ball.dx);
+    if (Math.abs(gameState.ball.dy) > 12)
+      gameState.ball.dy = 12 * Math.sign(gameState.ball.dy);
     hit = true;
+    gameState.tableHits.player1 = 0;
   } else if (
-    gameState.ball.y >= 760 &&
-    gameState.ball.y <= 770 &&
+    gameState.ball.y >= 405 &&
+    gameState.ball.y <= 420 &&
     gameState.ball.x >= gameState.paddle2.x &&
-    gameState.ball.x <= gameState.paddle2.x + 100
+    gameState.ball.x <= gameState.paddle2.x + 60
   ) {
-    let hitPos = (gameState.ball.x - gameState.paddle2.x - 50) / 50;
+    let hitPos = (gameState.ball.x - gameState.paddle2.x - 30) / 30;
     gameState.ball.dx = 6 * hitPos;
     gameState.ball.dy = Math.abs(gameState.ball.dy + 0.5) * 1.1;
+    gameState.ball.spin = hitPos * 2;
     gameState.ball.dx *= 1.1;
-    if (Math.abs(gameState.ball.dx) > 15)
-      gameState.ball.dx = 15 * Math.sign(gameState.ball.dx);
-    if (Math.abs(gameState.ball.dy) > 15)
-      gameState.ball.dy = 15 * Math.sign(gameState.ball.dy);
-    if (Math.abs(gameState.ball.dy) < 3) gameState.ball.dy = 3;
+    if (Math.abs(gameState.ball.dx) > 12)
+      gameState.ball.dx = 12 * Math.sign(gameState.ball.dx);
+    if (Math.abs(gameState.ball.dy) > 12)
+      gameState.ball.dy = 12 * Math.sign(gameState.ball.dy);
     hit = true;
+    gameState.tableHits.player2 = 0;
+  } else if (
+    gameState.ball.y >= 225 &&
+    gameState.ball.y <= 230 &&
+    gameState.ball.dy > 0 &&
+    gameState.tableHits.player2 === 0
+  ) {
+    gameState.ball.y = 225;
+    gameState.ball.dy *= -0.9;
+    gameState.ball.spin *= 0.8;
+    gameState.tableHits.player2 = 1;
+    tableHit = true;
+  } else if (
+    gameState.ball.y <= 225 &&
+    gameState.ball.y >= 220 &&
+    gameState.ball.dy < 0 &&
+    gameState.tableHits.player1 === 0
+  ) {
+    gameState.ball.y = 225;
+    gameState.ball.dy *= -0.9;
+    gameState.ball.spin *= 0.8;
+    gameState.tableHits.player1 = 1;
+    tableHit = true;
   }
 
   let goal = null;
-  if (gameState.ball.y < 0) {
+  if (
+    gameState.ball.y < 0 ||
+    (gameState.ball.y <= 225 && gameState.tableHits.player1 >= 1)
+  ) {
     gameState.paddle2.score += 1;
     goal = 2;
     resetBall(false);
-  } else if (gameState.ball.y > 800) {
+  } else if (
+    gameState.ball.y > 450 ||
+    (gameState.ball.y >= 225 && gameState.tableHits.player2 >= 1)
+  ) {
     gameState.paddle1.score += 1;
     goal = 1;
     resetBall(false);
   }
 
-  if (gameState.timer <= 0) {
-    let winner =
-      gameState.paddle1.score > gameState.paddle2.score
-        ? 1
-        : gameState.paddle2.score > gameState.paddle1.score
-        ? 2
-        : 0;
-    if (winner === 0) {
-      gameState.timer = 60;
-      gameState.startTime = Date.now();
-    } else {
-      gameState.status = "gameOver";
-      broadcast({ type: "gameOver", winner });
-    }
+  if ((gameState.paddle1.score + gameState.paddle2.score) % 2 === 0 && goal) {
+    gameState.servingPlayer = gameState.servingPlayer === 1 ? 2 : 1;
+  }
+
+  if (
+    gameState.paddle1.score >= 11 &&
+    gameState.paddle1.score >= gameState.paddle2.score + 2
+  ) {
+    gameState.status = "gameOver";
+    broadcast({ type: "gameOver", winner: 1 });
+  } else if (
+    gameState.paddle2.score >= 11 &&
+    gameState.paddle2.score >= gameState.paddle1.score + 2
+  ) {
+    gameState.status = "gameOver";
+    broadcast({ type: "gameOver", winner: 2 });
   }
 
   broadcast({
@@ -156,35 +221,25 @@ function updateGame() {
     paddle1: gameState.paddle1,
     paddle2: gameState.paddle2,
     ball: gameState.ball,
-    timer: gameState.timer,
+    servingPlayer: gameState.servingPlayer,
+    serveTimer: gameState.serveTimer,
     hit,
+    tableHit,
     goal,
   });
 }
 
 function resetBall(isNewGame) {
-  gameState.ball.x = 300;
-  gameState.ball.y = 400;
+  gameState.ball.x =
+    gameState.servingPlayer === 1
+      ? gameState.paddle1.x + 30
+      : gameState.paddle2.x + 30;
+  gameState.ball.y = gameState.servingPlayer === 1 ? 45 : 405;
   gameState.ball.dx = 0;
   gameState.ball.dy = 0;
-  setTimeout(() => {
-    if (isNewGame) {
-      let angle = (Math.random() * Math.PI) / 2 + Math.PI / 4;
-      if (Math.random() > 0.5) angle += Math.PI;
-      gameState.ball.dx = 6 * Math.cos(angle);
-      gameState.ball.dy = 6 * Math.sin(angle);
-    } else {
-      let angle = (Math.random() * Math.PI) / 2 + Math.PI / 4;
-      if (gameState.lastGoal === 2) {
-        gameState.ball.dy = Math.abs(6 * Math.sin(angle));
-      } else {
-        gameState.ball.dy = -Math.abs(6 * Math.sin(angle));
-      }
-      gameState.ball.dx = 6 * Math.cos(angle) * (Math.random() > 0.5 ? 1 : -1);
-    }
-    gameState.lastGoal =
-      gameState.paddle2.score > gameState.paddle1.score ? 2 : 1;
-  }, 1000);
+  gameState.ball.spin = 0;
+  gameState.tableHits = { player1: 0, player2: 0 };
+  gameState.serveTimer = 10;
 }
 
 function broadcast(data) {
