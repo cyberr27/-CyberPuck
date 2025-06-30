@@ -18,6 +18,7 @@ let gameState = {
   serveTimer: 10,
   tableHits: { player1: 0, player2: 0 },
   lastGoal: null,
+  newGameRequests: new Set(),
 };
 
 wss.on("connection", (ws) => {
@@ -29,12 +30,14 @@ wss.on("connection", (ws) => {
 
   const playerId = players.length + 1;
   players.push(ws);
+  ws.playerId = playerId; // Сохраняем playerId для идентификации
   ws.send(JSON.stringify({ type: "init", playerId }));
 
   if (players.length === 2) {
     gameState.status = "playing";
     gameState.servingPlayer = 1;
     gameState.serveTimer = 10;
+    gameState.newGameRequests.clear();
     resetBall(true);
     broadcast({
       type: "start",
@@ -69,15 +72,31 @@ wss.on("connection", (ws) => {
           gameState.paddle2.y += data.direction.y;
       }
     } else if (data.type === "serve" && playerId === gameState.servingPlayer) {
-      let angle = (Math.random() * Math.PI) / 4 + Math.PI / 8;
+      let angle = (Math.random() * Math.PI) / 8; // Меньший угол для вертикального движения
       let speed = 6 * data.charge;
       gameState.ball.dx =
-        speed * Math.cos(angle) * (Math.random() > 0.5 ? 1 : -1);
-      gameState.ball.dy =
-        playerId === 1 ? speed * Math.sin(angle) : -speed * Math.sin(angle);
+        speed * Math.sin(angle) * (Math.random() > 0.5 ? 1 : -1);
+      gameState.ball.dy = playerId === 1 ? speed : -speed; // Вертикальная траектория
       gameState.ball.spin = 0;
       gameState.serveTimer = 10;
       gameState.tableHits = { player1: 0, player2: 0 };
+    } else if (data.type === "newGame" && gameState.status === "gameOver") {
+      gameState.newGameRequests.add(playerId);
+      if (gameState.newGameRequests.size === 2) {
+        // Оба игрока запросили новую игру
+        gameState.status = "playing";
+        gameState.paddle1.score = 0;
+        gameState.paddle2.score = 0;
+        gameState.servingPlayer = 1;
+        gameState.serveTimer = 10;
+        gameState.newGameRequests.clear();
+        resetBall(true);
+        broadcast({
+          type: "start",
+          servingPlayer: gameState.servingPlayer,
+          serveTimer: gameState.serveTimer,
+        });
+      }
     }
   });
 
@@ -89,6 +108,7 @@ wss.on("connection", (ws) => {
     players = players.filter((player) => player !== ws);
     if (gameState.status === "playing") {
       gameState.status = "waiting";
+      gameState.newGameRequests.clear();
       broadcast({
         type: "error",
         message: "Игрок отключился. Ожидание нового игрока...",
@@ -113,7 +133,7 @@ function updateGame() {
   } else {
     gameState.ball.x += gameState.ball.dx;
     gameState.ball.y += gameState.ball.dy;
-    gameState.ball.dx += gameState.ball.spin * 0.1;
+    gameState.ball.dx += gameState.ball.spin * 0.05; // Уменьшенное влияние спина
   }
 
   if (gameState.ball.x <= 15 || gameState.ball.x >= 885) {
@@ -130,12 +150,12 @@ function updateGame() {
     gameState.ball.x <= gameState.paddle1.x + 60
   ) {
     let hitPos = (gameState.ball.x - gameState.paddle1.x - 30) / 30;
-    gameState.ball.dx = 6 * hitPos;
-    gameState.ball.dy = -Math.abs(gameState.ball.dy + 0.5) * 1.1;
-    gameState.ball.spin = hitPos * 2;
+    gameState.ball.dx = 3 * hitPos; // Меньшее горизонтальное движение
+    gameState.ball.dy = -Math.abs(gameState.ball.dy + 0.5) * 1.1; // Усиленное вертикальное движение
+    gameState.ball.spin = hitPos * 1;
     gameState.ball.dx *= 1.1;
-    if (Math.abs(gameState.ball.dx) > 12)
-      gameState.ball.dx = 12 * Math.sign(gameState.ball.dx);
+    if (Math.abs(gameState.ball.dx) > 6)
+      gameState.ball.dx = 6 * Math.sign(gameState.ball.dx);
     if (Math.abs(gameState.ball.dy) > 12)
       gameState.ball.dy = 12 * Math.sign(gameState.ball.dy);
     hit = true;
@@ -147,12 +167,12 @@ function updateGame() {
     gameState.ball.x <= gameState.paddle2.x + 60
   ) {
     let hitPos = (gameState.ball.x - gameState.paddle2.x - 30) / 30;
-    gameState.ball.dx = 6 * hitPos;
-    gameState.ball.dy = Math.abs(gameState.ball.dy + 0.5) * 1.1;
-    gameState.ball.spin = hitPos * 2;
+    gameState.ball.dx = 3 * hitPos; // Меньшее горизонтальное движение
+    gameState.ball.dy = Math.abs(gameState.ball.dy + 0.5) * 1.1; // Усиленное вертикальное движение
+    gameState.ball.spin = hitPos * 1;
     gameState.ball.dx *= 1.1;
-    if (Math.abs(gameState.ball.dx) > 12)
-      gameState.ball.dx = 12 * Math.sign(gameState.ball.dx);
+    if (Math.abs(gameState.ball.dx) > 6)
+      gameState.ball.dx = 6 * Math.sign(gameState.ball.dx);
     if (Math.abs(gameState.ball.dy) > 12)
       gameState.ball.dy = 12 * Math.sign(gameState.ball.dy);
     hit = true;

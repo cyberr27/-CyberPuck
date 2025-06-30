@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CyberPong</title>
+    <title>CyberPuck</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/addons/p5.sound.min.js"></script>
     <style>
@@ -43,11 +43,33 @@
         text-shadow: 0 0 10px #ff007a;
         font-size: clamp(14px, 1.8vw, 20px);
       }
+      #newGameButton {
+        position: absolute;
+        top: 70px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 10px 20px;
+        background: transparent;
+        border: 2px solid #ff007a;
+        color: #00ffcc;
+        font-family: "Courier New", monospace;
+        font-size: clamp(14px, 1.8vw, 18px);
+        text-shadow: 0 0 5px #00ffcc;
+        box-shadow: 0 0 10px #ff007a;
+        cursor: pointer;
+        display: none;
+      }
+      #newGameButton:hover {
+        background: #ff007a;
+        color: #0d0d1a;
+        text-shadow: none;
+      }
     </style>
   </head>
   <body>
     <div id="status">Ожидание второго игрока...</div>
     <div id="server">Подача: Игрок 1</div>
+    <button id="newGameButton" onclick="requestNewGame()">Новая игра</button>
     <script>
       let ws;
       let playerId = null;
@@ -106,6 +128,7 @@
             document.getElementById(
               "server"
             ).innerText = `Подача: Игрок ${servingPlayer}`;
+            document.getElementById("newGameButton").style.display = "none";
           } else if (data.type === "update") {
             paddle1.x = data.paddle1.x * (width / canvasWidth);
             paddle1.y = data.paddle1.y * (height / canvasHeight);
@@ -148,6 +171,7 @@
               "status"
             ).innerText = `Игра окончена! Победил игрок ${data.winner}!`;
             document.getElementById("server").innerText = "";
+            document.getElementById("newGameButton").style.display = "block";
           } else if (data.type === "error") {
             document.getElementById("status").innerText = data.message;
           }
@@ -157,6 +181,13 @@
           document.getElementById("status").innerText =
             "Соединение закрыто. Перезагрузите страницу.";
         };
+      }
+
+      function requestNewGame() {
+        ws.send(JSON.stringify({ type: "newGame" }));
+        document.getElementById("newGameButton").disabled = true;
+        document.getElementById("newGameButton").innerText =
+          "Ожидание второго игрока...";
       }
 
       function draw() {
