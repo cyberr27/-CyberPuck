@@ -263,7 +263,7 @@ function broadcast(data) {
 setInterval(() => {
   const now = Date.now();
   players = players.filter((player) => {
-    if (now - player.lastPing > 10000) {
+    if (now - player.lastPing > 100000000) {
       player.close();
       return false;
     }
