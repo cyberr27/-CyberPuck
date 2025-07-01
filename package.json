@@ -2,7 +2,7 @@
   "name": "cyberpuck",
   "version": "1.0.0",
   "license": "MIT",
-  "description": "Cyberpunk Pong game",
+  "description": "Cyberpunk Air Hockey game",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

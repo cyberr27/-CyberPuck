@@ -9,7 +9,7 @@
     <style>
       body {
         margin: 0;
-        background: #0d0d1a;
+        background: linear-gradient(45deg, #0d0d1a, #1a1a3a);
         display: flex;
         justify-content: center;
         align-items: center;
@@ -20,7 +20,7 @@
       }
       canvas {
         border: 2px solid #ff007a;
-        box-shadow: 0 0 20px #ff007a;
+        box-shadow: 0 0 20px #ff007a, 0 0 40px #00ffcc;
         width: 70vw;
         height: 90vh;
       }
@@ -30,7 +30,7 @@
         left: 50%;
         transform: translateX(-50%);
         color: #00ffcc;
-        text-shadow: 0 0 10px #00ffcc;
+        text-shadow: 0 0 10px #00ffcc, 0 0 20px #ff007a;
         font-size: clamp(16px, 2vw, 24px);
         text-align: center;
       }
@@ -43,9 +43,18 @@
         text-shadow: 0 0 10px #ff007a;
         font-size: clamp(14px, 1.8vw, 20px);
       }
+      #timer {
+        position: absolute;
+        top: 60px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: #ff00ff;
+        text-shadow: 0 0 10px #ff00ff;
+        font-size: clamp(14px, 1.8vw, 20px);
+      }
       #newGameButton {
         position: absolute;
-        top: 70px;
+        top: 90px;
         left: 50%;
         transform: translateX(-50%);
         padding: 10px 20px;
@@ -69,6 +78,7 @@
   <body>
     <div id="status">Ожидание второго игрока...</div>
     <div id="server">Подача: Игрок 1</div>
+    <div id="timer">03:00</div>
     <button id="newGameButton" onclick="requestNewGame()">Новая игра</button>
     <script>
       let ws;
@@ -79,19 +89,22 @@
       let gameState = "waiting";
       let servingPlayer = 1;
       let serveTimer = 10;
+      let gameTimer = 180; // 3 минуты в секундах
       let particles = [];
-      let hitSound, tableSound, goalSound;
+      let hitSound, tableSound, goalSound, backgroundMusic;
       let canvasWidth = 900;
       let canvasHeight = 450;
       let paddleWidth = 60;
       let paddleHeight = 15;
       let lastTouchX = null;
       let lastTouchY = null;
+      let chargeStart = null;
 
       function preload() {
         hitSound = loadSound("/sounds/hit.mp3");
         tableSound = loadSound("/sounds/table.mp3");
         goalSound = loadSound("/sounds/goal.mp3");
+        backgroundMusic = loadSound("/sounds/background.mp3");
       }
 
       function setup() {
@@ -103,6 +116,8 @@
 
         ws.onopen = () => {
           console.log("Подключено к WebSocket");
+          backgroundMusic.loop();
+          backgroundMusic.setVolume(0.3);
         };
 
         ws.onerror = (error) => {
@@ -122,12 +137,14 @@
             gameState = "playing";
             servingPlayer = data.servingPlayer;
             serveTimer = data.serveTimer;
+            gameTimer = data.gameTimer;
             document.getElementById(
               "status"
             ).innerText = `Счёт: ${paddle1.score} - ${paddle2.score}`;
             document.getElementById(
               "server"
             ).innerText = `Подача: Игрок ${servingPlayer}`;
+            document.getElementById("timer").innerText = formatTime(gameTimer);
             document.getElementById("newGameButton").style.display = "none";
           } else if (data.type === "update") {
             paddle1.x = data.paddle1.x * (width / canvasWidth);
@@ -143,20 +160,22 @@
             paddle2.score = data.paddle2.score;
             servingPlayer = data.servingPlayer;
             serveTimer = data.serveTimer;
+            gameTimer = data.gameTimer;
             if (data.hit) {
               createParticles(
                 ball.x,
                 ball.y,
-                Math.abs(ball.dx) + Math.abs(ball.dy)
+                Math.abs(ball.dx) + Math.abs(ball.dy),
+                color(255, 0, 122)
               );
               hitSound.play();
             }
             if (data.tableHit) {
-              createParticles(ball.x, ball.y, 10);
+              createParticles(ball.x, ball.y, 10, color(0, 255, 204));
               tableSound.play();
             }
             if (data.goal) {
-              createParticles(ball.x, ball.y, 30);
+              createParticles(ball.x, ball.y, 30, color(255, 0, 255));
               goalSound.play();
             }
             document.getElementById(
@@ -165,13 +184,17 @@
             document.getElementById(
               "server"
             ).innerText = `Подача: Игрок ${servingPlayer}`;
+            document.getElementById("timer").innerText = formatTime(gameTimer);
           } else if (data.type === "gameOver") {
             gameState = "gameOver";
             document.getElementById(
               "status"
             ).innerText = `Игра окончена! Победил игрок ${data.winner}!`;
             document.getElementById("server").innerText = "";
+            document.getElementById("timer").innerText = "";
             document.getElementById("newGameButton").style.display = "block";
+            document.getElementById("newGameButton").disabled = false;
+            document.getElementById("newGameButton").innerText = "Новая игра";
           } else if (data.type === "error") {
             document.getElementById("status").innerText = data.message;
           }
@@ -180,7 +203,16 @@
         ws.onclose = () => {
           document.getElementById("status").innerText =
             "Соединение закрыто. Перезагрузите страницу.";
+          backgroundMusic.stop();
         };
+      }
+
+      function formatTime(seconds) {
+        let mins = Math.floor(seconds / 60);
+        let secs = Math.floor(seconds % 60);
+        return `${mins.toString().padStart(2, "0")}:${secs
+          .toString()
+          .padStart(2, "0")}`;
       }
 
       function requestNewGame() {
@@ -191,9 +223,11 @@
       }
 
       function draw() {
-        background(13, 13, 26);
+        // Динамический фон
+        background(13, 13, 26, 200);
+        drawCyberBackground();
         // Рисуем сетку
-        stroke(0, 255, 204);
+        stroke(0, 255, 204, 100);
         strokeWeight(2);
         line(width / 2, 0, width / 2, height);
         fill(255, 0, 122);
@@ -212,7 +246,7 @@
         line(0, 0, 0, height);
         line(width, 0, width, height);
         line(0, height / 2, width, height / 2);
-        // Рисуем ракеты
+        // Рисуем ракетки
         fill(0, 255, 204);
         noStroke();
         rect(paddle1.x, paddle1.y, paddleWidth, paddleHeight);
@@ -239,6 +273,21 @@
         drawingContext.shadowBlur = 0;
       }
 
+      function drawCyberBackground() {
+        // Неоновые линии для киберпанковой атмосферы
+        stroke(255, 0, 122, 50);
+        strokeWeight(2);
+        for (let i = 0; i < 10; i++) {
+          let x = ((frameCount * 2 + i * 100) % (width + 100)) - 50;
+          line(x, 0, x - 50, height);
+        }
+        stroke(0, 255, 204, 50);
+        for (let i = 0; i < 10; i++) {
+          let y = ((frameCount + i * 80) % (height + 80)) - 40;
+          line(0, y, width, y);
+        }
+      }
+
       function windowResized() {
         let newWidth = min(windowWidth * 0.7, windowHeight * 2 * 0.7);
         let newHeight = min(windowHeight * 0.9, newWidth * 0.5);
@@ -252,30 +301,55 @@
           return;
         }
         let move = {};
-        if (keyCode === LEFT_ARROW) move.x = -10;
-        if (keyCode === RIGHT_ARROW) move.x = 10;
-        if (keyCode === UP_ARROW && playerId === 1 && paddle1.y > 0)
-          move.y = -5;
+        if (keyCode === LEFT_ARROW || key === "a" || key === "A") {
+          move.x = -10;
+        }
+        if (keyCode === RIGHT_ARROW || key === "d" || key === "D") {
+          move.x = 10;
+        }
         if (
-          keyCode === DOWN_ARROW &&
+          (keyCode === UP_ARROW || key === "w" || key === "W") &&
+          playerId === 1 &&
+          paddle1.y > 0
+        ) {
+          move.y = -5;
+        }
+        if (
+          (keyCode === DOWN_ARROW || key === "s" || key === "S") &&
           playerId === 1 &&
           paddle1.y < height / 2 - paddleHeight
-        )
+        ) {
           move.y = 5;
-        if (keyCode === UP_ARROW && playerId === 2 && paddle2.y > height / 2)
-          move.y = -5;
+        }
         if (
-          keyCode === DOWN_ARROW &&
+          (keyCode === UP_ARROW || key === "w" || key === "W") &&
+          playerId === 2 &&
+          paddle2.y > height / 2
+        ) {
+          move.y = -5;
+        }
+        if (
+          (keyCode === DOWN_ARROW || key === "s" || key === "S") &&
           playerId === 2 &&
           paddle2.y < height - paddleHeight
-        )
+        ) {
           move.y = 5;
+        }
         if (keyCode === 32 && playerId === servingPlayer) {
-          // Пробел для подачи
-          ws.send(JSON.stringify({ type: "serve", charge: 1 }));
+          chargeStart = millis();
         }
         if (move.x || move.y) {
           ws.send(JSON.stringify({ type: "move", direction: move }));
+        }
+      }
+
+      function keyReleased() {
+        if (gameState !== "playing" || playerId !== servingPlayer) return;
+        if (keyCode === 32 && chargeStart !== null) {
+          let chargeTime = (millis() - chargeStart) / 1000; // Время в секундах
+          let charge = min(2, 1 + chargeTime * 0.5); // Максимум x2
+          ws.send(JSON.stringify({ type: "serve", charge }));
+          chargeStart = null;
         }
       }
 
@@ -287,19 +361,19 @@
         if (lastTouchX !== null) {
           let deltaX = touchX - lastTouchX;
           let deltaY = touchY - lastTouchY;
-          move.x = deltaX < 0 ? -10 : deltaX > 0 ? 10 : 0;
+          move.x = deltaX < -5 ? -10 : deltaX > 5 ? 10 : 0;
           if (playerId === 1 && deltaY !== 0) {
             move.y =
-              deltaY < 0 && paddle1.y > 0
+              deltaY < -5 && paddle1.y > 0
                 ? -5
-                : deltaY > 0 && paddle1.y < height / 2 - paddleHeight
+                : deltaY > 5 && paddle1.y < height / 2 - paddleHeight
                 ? 5
                 : 0;
           } else if (playerId === 2 && deltaY !== 0) {
             move.y =
-              deltaY < 0 && paddle2.y > height / 2
+              deltaY < -5 && paddle2.y > height / 2
                 ? -5
-                : deltaY > 0 && paddle2.y < height - paddleHeight
+                : deltaY > 5 && paddle2.y < height - paddleHeight
                 ? 5
                 : 0;
           }
@@ -320,20 +394,21 @@
         lastTouchY = null;
       }
 
-      function createParticles(x, y, intensity) {
-        let count = Math.min(20, Math.floor(10 + intensity * 0.5));
+      function createParticles(x, y, intensity, col) {
+        let count = Math.min(30, Math.floor(10 + intensity * 0.7));
         for (let i = 0; i < count; i++) {
-          particles.push(new Particle(x, y));
+          particles.push(new Particle(x, y, col));
         }
       }
 
       class Particle {
-        constructor(x, y) {
+        constructor(x, y, col) {
           this.x = x;
           this.y = y;
-          this.vx = random(-3, 3);
-          this.vy = random(-3, 3);
-          this.lifetime = 40;
+          this.vx = random(-4, 4);
+          this.vy = random(-4, 4);
+          this.lifetime = 50;
+          this.color = col || color(255, 0, 122);
         }
         update() {
           this.x += this.vx;
@@ -342,8 +417,8 @@
         }
         show() {
           noStroke();
-          fill(255, 0, 122, this.lifetime * 6);
-          ellipse(this.x, this.y, width * 0.008, width * 0.008);
+          fill(this.color, this.lifetime * 5);
+          ellipse(this.x, this.y, width * 0.01, width * 0.01);
         }
       }
     </script>
