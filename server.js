@@ -10,9 +10,9 @@ app.use(express.static("public"));
 
 let players = [];
 let gameState = {
-  paddle1: { x: 400, y: 30, score: 0, vx: 0 },
-  paddle2: { x: 400, y: 420, score: 0, vx: 0 },
-  ball: { x: 450, y: 225, dx: 0, dy: 0, spin: 0 },
+  paddle1: { x: 0.5, y: 0.0667, score: 0, vx: 0 },
+  paddle2: { x: 0.5, y: 0.9333, score: 0, vx: 0 },
+  ball: { x: 0.5, y: 0.5, dx: 0, dy: 0, spin: 0 },
   status: "waiting",
   servingPlayer: 1,
   serveTimer: 10,
@@ -60,27 +60,27 @@ wss.on("connection", (ws) => {
       if (playerId === 1) {
         if (data.direction.x < 0 && gameState.paddle1.x > 0)
           gameState.paddle1.x += data.direction.x;
-        if (data.direction.x > 0 && gameState.paddle1.x < 840)
+        if (data.direction.x > 0 && gameState.paddle1.x < 1 - 0.0667)
           gameState.paddle1.x += data.direction.x;
         if (data.direction.y < 0 && gameState.paddle1.y > 0)
           gameState.paddle1.y += data.direction.y;
-        if (data.direction.y > 0 && gameState.paddle1.y < 210)
+        if (data.direction.y > 0 && gameState.paddle1.y < 0.5 - 0.0333)
           gameState.paddle1.y += data.direction.y;
         gameState.paddle1.vx = data.direction.x || 0;
       } else if (playerId === 2) {
         if (data.direction.x < 0 && gameState.paddle2.x > 0)
           gameState.paddle2.x += data.direction.x;
-        if (data.direction.x > 0 && gameState.paddle2.x < 840)
+        if (data.direction.x > 0 && gameState.paddle2.x < 1 - 0.0667)
           gameState.paddle2.x += data.direction.x;
-        if (data.direction.y < 0 && gameState.paddle2.y > 240)
+        if (data.direction.y < 0 && gameState.paddle2.y > 0.5)
           gameState.paddle2.y += data.direction.y;
-        if (data.direction.y > 0 && gameState.paddle2.y < 435)
+        if (data.direction.y > 0 && gameState.paddle2.y < 1 - 0.0333)
           gameState.paddle2.y += data.direction.y;
         gameState.paddle2.vx = data.direction.x || 0;
       }
     } else if (data.type === "serve" && playerId === gameState.servingPlayer) {
       let angle = (Math.PI / 6) * (data.direction || Math.random() - 0.5);
-      let speed = 6 * data.charge;
+      let speed = 0.0067 * data.charge;
       gameState.ball.dx = speed * Math.sin(angle);
       gameState.ball.dy =
         playerId === 1 ? speed * Math.cos(angle) : -speed * Math.cos(angle);
@@ -149,51 +149,60 @@ function updateGame() {
   } else {
     gameState.ball.x += gameState.ball.dx;
     gameState.ball.y += gameState.ball.dy;
-    gameState.ball.dx += gameState.ball.spin * 0.05;
+    gameState.ball.dx += gameState.ball.spin * 0.0005;
     gameState.ball.spin *= 0.98;
-    gameState.ball.dx *= 0.995; // Трение
+    gameState.ball.dx *= 0.995;
     gameState.ball.dy *= 0.995;
+
+    // Ограничение скорости мяча
+    let speed = Math.sqrt(
+      gameState.ball.dx * gameState.ball.dx +
+        gameState.ball.dy * gameState.ball.dy
+    );
+    if (speed > 0.0133) {
+      let factor = 0.0133 / speed;
+      gameState.ball.dx *= factor;
+      gameState.ball.dy *= factor;
+    }
   }
 
   let wallHit = false;
-  if (gameState.ball.x <= 15 || gameState.ball.x >= 885) {
+  if (gameState.ball.x <= 0.0167 || gameState.ball.x >= 1 - 0.0167) {
     gameState.ball.dx *= -1;
+    gameState.ball.x = constrain(gameState.ball.x, 0.0167, 1 - 0.0167);
     gameState.ball.spin *= -0.5;
     wallHit = true;
   }
 
   let hit = false;
+  let ballRadius = 0.0083;
   if (
-    gameState.ball.y <= gameState.paddle1.y + 15 &&
+    gameState.ball.y <= gameState.paddle1.y + 0.0333 + ballRadius &&
+    gameState.ball.y >= gameState.paddle1.y - ballRadius &&
     gameState.ball.dy > 0 &&
-    gameState.ball.x >= gameState.paddle1.x &&
-    gameState.ball.x <= gameState.paddle1.x + 60
+    gameState.ball.x >= gameState.paddle1.x - ballRadius &&
+    gameState.ball.x <= gameState.paddle1.x + 0.0667 + ballRadius
   ) {
-    let hitPos = (gameState.ball.x - gameState.paddle1.x - 30) / 30;
-    gameState.ball.dx = 5 * hitPos + gameState.paddle1.vx * 0.3;
-    gameState.ball.dy = -Math.abs(gameState.ball.dy + 0.5) * 1.15;
-    gameState.ball.spin = hitPos * 1.0 + gameState.paddle1.vx * 0.15;
+    let hitPos = (gameState.ball.x - gameState.paddle1.x - 0.0333) / 0.0333;
+    gameState.ball.dx = 0.0056 * hitPos + gameState.paddle1.vx * 0.3;
+    gameState.ball.dy = -Math.abs(gameState.ball.dy + 0.0005) * 1.15;
+    gameState.ball.spin = hitPos * 0.001 + gameState.paddle1.vx * 0.15;
+    gameState.ball.y = gameState.paddle1.y - ballRadius;
     gameState.ball.dx *= 1.15;
-    if (Math.abs(gameState.ball.dx) > 12)
-      gameState.ball.dx = 12 * Math.sign(gameState.ball.dx);
-    if (Math.abs(gameState.ball.dy) > 18)
-      gameState.ball.dy = 18 * Math.sign(gameState.ball.dy);
     hit = true;
   } else if (
-    gameState.ball.y >= gameState.paddle2.y &&
+    gameState.ball.y >= gameState.paddle2.y - ballRadius &&
+    gameState.ball.y <= gameState.paddle2.y + 0.0333 + ballRadius &&
     gameState.ball.dy < 0 &&
-    gameState.ball.x >= gameState.paddle2.x &&
-    gameState.ball.x <= gameState.paddle2.x + 60
+    gameState.ball.x >= gameState.paddle2.x - ballRadius &&
+    gameState.ball.x <= gameState.paddle2.x + 0.0667 + ballRadius
   ) {
-    let hitPos = (gameState.ball.x - gameState.paddle2.x - 30) / 30;
-    gameState.ball.dx = 5 * hitPos + gameState.paddle2.vx * 0.3;
-    gameState.ball.dy = Math.abs(gameState.ball.dy + 0.5) * 1.15;
-    gameState.ball.spin = hitPos * 1.0 + gameState.paddle2.vx * 0.15;
+    let hitPos = (gameState.ball.x - gameState.paddle2.x - 0.0333) / 0.0333;
+    gameState.ball.dx = 0.0056 * hitPos + gameState.paddle2.vx * 0.3;
+    gameState.ball.dy = Math.abs(gameState.ball.dy + 0.0005) * 1.15;
+    gameState.ball.spin = hitPos * 0.001 + gameState.paddle2.vx * 0.15;
+    gameState.ball.y = gameState.paddle2.y + ballRadius;
     gameState.ball.dx *= 1.15;
-    if (Math.abs(gameState.ball.dx) > 12)
-      gameState.ball.dx = 12 * Math.sign(gameState.ball.dx);
-    if (Math.abs(gameState.ball.dy) > 18)
-      gameState.ball.dy = 18 * Math.sign(gameState.ball.dy);
     hit = true;
   }
 
@@ -202,7 +211,7 @@ function updateGame() {
     gameState.paddle2.score += 1;
     goal = 2;
     resetBall(false);
-  } else if (gameState.ball.y > 450) {
+  } else if (gameState.ball.y > 1) {
     gameState.paddle1.score += 1;
     goal = 1;
     resetBall(false);
@@ -243,9 +252,9 @@ function updateGame() {
 function resetBall(isNewGame) {
   gameState.ball.x =
     gameState.servingPlayer === 1
-      ? gameState.paddle1.x + 30
-      : gameState.paddle2.x + 30;
-  gameState.ball.y = gameState.servingPlayer === 1 ? 45 : 405;
+      ? gameState.paddle1.x + 0.0333
+      : gameState.paddle2.x + 0.0333;
+  gameState.ball.y = gameState.servingPlayer === 1 ? 0.1 : 0.9;
   gameState.ball.dx = 0;
   gameState.ball.dy = 0;
   gameState.ball.spin = 0;
@@ -263,7 +272,7 @@ function broadcast(data) {
 setInterval(() => {
   const now = Date.now();
   players = players.filter((player) => {
-    if (now - player.lastPing > 100000000) {
+    if (now - player.lastPing > 10000) {
       player.close();
       return false;
     }
