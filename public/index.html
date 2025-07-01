@@ -112,7 +112,7 @@
         strongHitSound = loadSound("/sounds/strong_hit.mp3");
         tableSound = loadSound("/sounds/table.mp3");
         goalSound = loadSound("/sounds/goal.mp3");
-        backgroundMusic = loadSound("/sounds/background.mp3");
+        backgroundMusic = loadloadSound("/sounds/background.mp3");
       }
 
       function setup() {
@@ -226,7 +226,7 @@
       function formatTime(seconds) {
         let mins = Math.floor(seconds / 60);
         let secs = Math.floor(seconds % 60);
-        return `${mins.toString().padStart(2, "0,")}:${secs
+        return `${mins.toString().padStart(2, "0")}:${secs
           .toString()
           .padStart(2, "0")}`;
       }
@@ -270,40 +270,42 @@
         noStroke();
         let paddle1Glow =
           playerId === 1 && chargeStart !== null
-            ? ((millis() - chargeStart) / 1000) * 30
-            : 20 + Math.abs(paddle1.vx) * 3;
+            ? ((millis() - chargeStart) / 1000) * 40
+            : 20 + Math.abs(paddle1.vx) * 5;
         let paddle2Glow =
           playerId === 2 && chargeStart !== null
-            ? ((millis() - chargeStart) / 1000) * 30
-            : 20 + Math.abs(paddle2.vx) * 3;
+            ? ((millis() - chargeStart) / 1000) * 40
+            : 20 + Math.abs(paddle2.vx) * 5;
         drawingContext.shadowBlur = paddle1Glow;
-        drawingContext.shadowColor = `rgba(0, 255, 204, 0.8)`;
+        drawingContext.shadowColor = `rgba(0, 255, 204, 0.9)`;
         fill(0, 255, 204);
         rect(
           constrain(paddle1.x, 0, width - paddleWidth * width),
           constrain(paddle1.y, 0, height / 2 - paddleHeight * height),
           paddleWidth * width,
-          paddleHeight * height
+          paddleHeight * height,
+          5
         );
         drawingContext.shadowBlur = paddle2Glow;
-        drawingContext.shadowColor = `rgba(0, 255, 204, 0.8)`;
+        drawingContext.shadowColor = `rgba(0, 255, 204, 0.9)`;
         rect(
           constrain(paddle2.x, 0, width - paddleWidth * width),
           constrain(paddle2.y, height / 2, height - paddleHeight * height),
           paddleWidth * width,
-          paddleHeight * height
+          paddleHeight * height,
+          5
         );
         drawingContext.shadowBlur = 0;
 
         // Рисуем след мяча
         for (let i = ballTrail.length - 1; i >= 0; i--) {
           let trail = ballTrail[i];
-          let alpha = map(i, 0, ballTrail.length - 1, 20, 150);
+          let alpha = map(i, 0, ballTrail.length - 1, 20, 200);
           fill(255, 0, 122, alpha);
           noStroke();
           let trailSize = width * 0.01 * (1 + i / ballTrail.length);
           ellipse(trail.x, trail.y, trailSize, trailSize);
-          trail.alpha -= 5;
+          trail.alpha -= 3;
           if (trail.alpha <= 0) {
             ballTrail.splice(i, 1);
           }
@@ -311,8 +313,8 @@
 
         // Рисуем мяч
         let ballSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
-        drawingContext.shadowBlur = 15 + ballSpeed;
-        drawingContext.shadowColor = `rgba(255, 0, 122, 0.9)`;
+        drawingContext.shadowBlur = 20 + ballSpeed * 2;
+        drawingContext.shadowColor = `rgba(255, 0, 122, 1)`;
         fill(255, 0, 122);
         ellipse(
           constrain(ball.x, width * 0.0083, width * (1 - 0.0083)),
@@ -343,21 +345,21 @@
       }
 
       function drawCyberBackground() {
-        stroke(255, 0, 122, 50);
+        stroke(255, 0, 122, 60);
         strokeWeight(2);
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 12; i++) {
           let x = ((frameCount * 2 + i * 100) % (width + 100)) - 50;
           line(x, 0, x - 50, height);
         }
-        stroke(0, 255, 204, 50);
-        for (let i = 0; i < 10; i++) {
+        stroke(0, 255, 204, 60);
+        for (let i = 0; i < 12; i++) {
           let y = ((frameCount + i * 80) % (height + 80)) - 40;
           line(0, y, width, y);
         }
       }
 
       function createGoalEffect(y) {
-        let count = 50;
+        let count = 60;
         for (let i = 0; i < count; i++) {
           particles.push(
             new Particle(
@@ -480,7 +482,7 @@
       }
 
       function createParticles(x, y, intensity, col) {
-        let count = Math.min(50, Math.floor(15 + intensity));
+        let count = Math.min(60, Math.floor(20 + intensity * 2));
         for (let i = 0; i < count; i++) {
           particles.push(new Particle(x, y, col));
         }
@@ -490,26 +492,28 @@
         constructor(x, y, col) {
           this.x = x;
           this.y = y;
-          this.vx = random(-5, 5);
-          this.vy = random(-5, 5);
-          this.lifetime = 60;
-          this.color = col || color(255, 0, 122);
+          this.vx = random(-7, 7);
+          this.vy = random(-7, 7);
+          this.lifetime = 50;
+          this.color = col || color(255, 0, 122, 200);
         }
         update() {
           this.x += this.vx;
           this.y += this.vy;
           this.lifetime -= 1;
+          this.vx *= 0.95;
+          this.vy *= 0.95;
         }
         show() {
           noStroke();
-          fill(this.color, this.lifetime * 4);
-          ellipse(this.x, this.y, width * 0.012, width * 0.012);
+          fill(this.color, this.lifetime * 5);
+          ellipse(this.x, this.y, width * 0.015, width * 0.015);
         }
       }
 
       function update() {
         if (gameState === "playing") {
-          ballTrail.push({ x: ball.x, y: ball.y, alpha: 150 });
+          ballTrail.push({ x: ball.x, y: ball.y, alpha: 200 });
           if (ballTrail.length > 20) {
             ballTrail.shift();
           }

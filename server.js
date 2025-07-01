@@ -79,12 +79,12 @@ wss.on("connection", (ws) => {
         gameState.paddle2.vx = data.direction.x || 0;
       }
     } else if (data.type === "serve" && playerId === gameState.servingPlayer) {
-      let angle = (Math.PI / 6) * (data.direction || Math.random() - 0.5);
-      let speed = 0.0067 * data.charge;
+      let angle = (Math.PI / 4) * (data.direction || Math.random() - 0.5);
+      let speed = 0.007 * data.charge;
       gameState.ball.dx = speed * Math.sin(angle);
       gameState.ball.dy =
         playerId === 1 ? speed * Math.cos(angle) : -speed * Math.cos(angle);
-      gameState.ball.spin = data.direction * 0.5;
+      gameState.ball.spin = data.direction * 0.3;
       gameState.serveTimer = 10;
     } else if (data.type === "newGame" && gameState.status === "gameOver") {
       gameState.newGameRequests.add(playerId);
@@ -149,8 +149,8 @@ function updateGame() {
   } else {
     gameState.ball.x += gameState.ball.dx;
     gameState.ball.y += gameState.ball.dy;
-    gameState.ball.dx += gameState.ball.spin * 0.0005;
-    gameState.ball.spin *= 0.98;
+    gameState.ball.dx += gameState.ball.spin * 0.0003;
+    gameState.ball.spin *= 0.99;
     gameState.ball.dx *= 0.995;
     gameState.ball.dy *= 0.995;
 
@@ -159,8 +159,8 @@ function updateGame() {
       gameState.ball.dx * gameState.ball.dx +
         gameState.ball.dy * gameState.ball.dy
     );
-    if (speed > 0.0133) {
-      let factor = 0.0133 / speed;
+    if (speed > 0.015) {
+      let factor = 0.015 / speed;
       gameState.ball.dx *= factor;
       gameState.ball.dy *= factor;
     }
@@ -170,48 +170,66 @@ function updateGame() {
   if (gameState.ball.x <= 0.0167 || gameState.ball.x >= 1 - 0.0167) {
     gameState.ball.dx *= -1;
     gameState.ball.x = constrain(gameState.ball.x, 0.0167, 1 - 0.0167);
-    gameState.ball.spin *= -0.5;
+    gameState.ball.spin *= -0.6;
     wallHit = true;
   }
 
   let hit = false;
   let ballRadius = 0.0083;
+  let paddleWidth = 0.0667;
+  let paddleHeight = 0.0333;
+
+  // Столкновение с ракеткой игрока 1
   if (
-    gameState.ball.y <= gameState.paddle1.y + 0.0333 + ballRadius &&
+    gameState.ball.y <= gameState.paddle1.y + paddleHeight + ballRadius &&
     gameState.ball.y >= gameState.paddle1.y - ballRadius &&
     gameState.ball.dy > 0 &&
     gameState.ball.x >= gameState.paddle1.x - ballRadius &&
-    gameState.ball.x <= gameState.paddle1.x + 0.0667 + ballRadius
+    gameState.ball.x <= gameState.paddle1.x + paddleWidth + ballRadius
   ) {
-    let hitPos = (gameState.ball.x - gameState.paddle1.x - 0.0333) / 0.0333;
-    gameState.ball.dx = 0.0056 * hitPos + gameState.paddle1.vx * 0.3;
-    gameState.ball.dy = -Math.abs(gameState.ball.dy + 0.0005) * 1.15;
-    gameState.ball.spin = hitPos * 0.001 + gameState.paddle1.vx * 0.15;
+    let hitPos =
+      (gameState.ball.x - gameState.paddle1.x - paddleWidth / 2) /
+      (paddleWidth / 2);
+    gameState.ball.dx = 0.006 * hitPos + gameState.paddle1.vx * 0.4;
+    gameState.ball.dy = -Math.abs(gameState.ball.dy) * 1.2;
+    gameState.ball.spin = hitPos * 0.0015 + gameState.paddle1.vx * 0.2;
     gameState.ball.y = gameState.paddle1.y - ballRadius;
-    gameState.ball.dx *= 1.15;
+    gameState.ball.dx *= 1.1;
     hit = true;
-  } else if (
+  }
+  // Столкновение с ракеткой игрока 2
+  else if (
     gameState.ball.y >= gameState.paddle2.y - ballRadius &&
-    gameState.ball.y <= gameState.paddle2.y + 0.0333 + ballRadius &&
+    gameState.ball.y <= gameState.paddle2.y + paddleHeight + ballRadius &&
     gameState.ball.dy < 0 &&
     gameState.ball.x >= gameState.paddle2.x - ballRadius &&
-    gameState.ball.x <= gameState.paddle2.x + 0.0667 + ballRadius
+    gameState.ball.x <= gameState.paddle2.x + paddleWidth + ballRadius
   ) {
-    let hitPos = (gameState.ball.x - gameState.paddle2.x - 0.0333) / 0.0333;
-    gameState.ball.dx = 0.0056 * hitPos + gameState.paddle2.vx * 0.3;
-    gameState.ball.dy = Math.abs(gameState.ball.dy + 0.0005) * 1.15;
-    gameState.ball.spin = hitPos * 0.001 + gameState.paddle2.vx * 0.15;
+    let hitPos =
+      (gameState.ball.x - gameState.paddle2.x - paddleWidth / 2) /
+      (paddleWidth / 2);
+    gameState.ball.dx = 0.006 * hitPos + gameState.paddle2.vx * 0.4;
+    gameState.ball.dy = Math.abs(gameState.ball.dy) * 1.2;
+    gameState.ball.spin = hitPos * 0.0015 + gameState.paddle2.vx * 0.2;
     gameState.ball.y = gameState.paddle2.y + ballRadius;
-    gameState.ball.dx *= 1.15;
+    gameState.ball.dx *= 1.1;
     hit = true;
   }
 
   let goal = null;
-  if (gameState.ball.y < 0) {
+  if (
+    gameState.ball.y < 0.0083 &&
+    gameState.ball.x >= 0.25 &&
+    gameState.ball.x <= 0.75
+  ) {
     gameState.paddle2.score += 1;
     goal = 2;
     resetBall(false);
-  } else if (gameState.ball.y > 1) {
+  } else if (
+    gameState.ball.y > 1 - 0.0083 &&
+    gameState.ball.x >= 0.25 &&
+    gameState.ball.x <= 0.75
+  ) {
     gameState.paddle1.score += 1;
     goal = 1;
     resetBall(false);
