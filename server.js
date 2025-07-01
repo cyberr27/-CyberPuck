@@ -8,6 +8,11 @@ const wss = new WebSocket.Server({ server });
 
 app.use(express.static("public"));
 
+// Функция constrain для ограничения значений
+function constrain(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
 let players = [];
 let gameState = {
   paddle1: { x: 0.5, y: 0.0667, score: 0, vx: 0 },
@@ -290,7 +295,8 @@ function broadcast(data) {
 setInterval(() => {
   const now = Date.now();
   players = players.filter((player) => {
-    if (now - player.lastPing > 100000000) {
+    if (now - player.lastPing > 10000) {
+      // Уменьшено до 10 секунд для более быстрого обнаружения отключения
       player.close();
       return false;
     }
@@ -308,6 +314,6 @@ setInterval(() => {
 
 setInterval(updateGame, 1000 / 60);
 
-server.listen(process.env.PORT || 3000, () => {
+server.listen(process.env.PORT || 10000, () => {
   console.log("Сервер запущен на порту", server.address().port);
 });

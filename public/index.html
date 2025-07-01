@@ -112,7 +112,11 @@
         strongHitSound = loadSound("/sounds/strong_hit.mp3");
         tableSound = loadSound("/sounds/table.mp3");
         goalSound = loadSound("/sounds/goal.mp3");
-        backgroundMusic = loadloadSound("/sounds/background.mp3");
+        backgroundMusic = loadSound("/sounds/background.mp3", () => {
+          console.log("Фоновая музыка загружена");
+        }, (err) => {
+          console.error("Ошибка загрузки фоновой музыки:", err);
+        });
       }
 
       function setup() {
@@ -124,8 +128,12 @@
 
         ws.onopen = () => {
           console.log("Подключено к WebSocket");
-          backgroundMusic.loop();
-          backgroundMusic.setVolume(0.3);
+          if (backgroundMusic) {
+            backgroundMusic.loop();
+            backgroundMusic.setVolume(0.3);
+          } else {
+            console.warn("Фоновая музыка не загружена");
+          }
         };
 
         ws.onerror = (error) => {
@@ -171,7 +179,7 @@
             servingPlayer = data.servingPlayer;
             serveTimer = data.serveTimer;
             gameTimer = data.gameTimer;
-            if (data.hit) {
+            if (data.hit && hitSound && strongHitSound) {
               createParticles(
                 ball.x,
                 ball.y,
@@ -185,12 +193,12 @@
                 hitSound.play();
               }
             }
-            if (data.wallHit) {
+            if (data.wallHit && tableSound) {
               createParticles(ball.x, ball.y, 10, color(0, 255, 204));
               tableSound.play();
               tableShake = { x: random(-2, 2), y: random(-2, 2), duration: 10 };
             }
-            if (data.goal) {
+            if (data.goal && goalSound) {
               createGoalEffect(data.goal === 1 ? height : 0);
               goalSound.play();
             }
@@ -219,7 +227,9 @@
         ws.onclose = () => {
           document.getElementById("status").innerText =
             "Соединение закрыто. Перезагрузите страницу.";
-          backgroundMusic.stop();
+          if (backgroundMusic) {
+            backgroundMusic.stop();
+          }
         };
       }
 
