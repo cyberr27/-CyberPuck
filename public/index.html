@@ -166,8 +166,7 @@
             ball.dy = data.ball.dy;
             ball.spin = data.ball.spin;
             paddle1.score = data.paddle1.score;
-            paddle2.score = data.paddleেন
-
+            paddle2.score = data.paddle2.score; // Исправлено: добавлена полная строка
             paddle1.vx = data.paddle1.vx;
             paddle2.vx = data.paddle2.vx;
             if (data.hit) {
@@ -262,8 +261,14 @@
 
         // Рисуем ракетки с эффектом заряда
         noStroke();
-        let paddle1Glow = playerId === 1 && chargeStart !== null ? (millis() - chargeStart) / 1000 * 20 : 20;
-        let paddle2Glow = playerId === 2 && chargeStart !== null ? (millis() - chargeStart) / 1000 * 20 : 20;
+        let paddle1Glow =
+          playerId === 1 && chargeStart !== null
+            ? ((millis() - chargeStart) / 1000) * 20
+            : 20;
+        let paddle2Glow =
+          playerId === 2 && chargeStart !== null
+            ? ((millis() - chargeStart) / 1000) * 20
+            : 20;
         drawingContext.shadowBlur = paddle1Glow + Math.abs(paddle1.vx || 0) * 2;
         drawingContext.shadowColor = `rgba(0, 255, 204, ${
           0.5 + Math.abs(paddle1.vx || 0) / 20
@@ -304,7 +309,9 @@
         // Рисуем мяч
         let ballSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
         drawingContext.shadowBlur = 15 + ballSpeed / 2;
-        drawingContext.shadowColor = `rgba(255, 0, 122, ${0.7 + ballSpeed / 20})`;
+        drawingContext.shadowColor = `rgba(255, 0, 122, ${
+          0.7 + ballSpeed / 20
+        })`;
         fill(255, 0, 122);
         ellipse(
           constrain(ball.x, width * 0.0083, width * (1 - 0.0083)),
@@ -432,11 +439,7 @@
               paddle1.y < height / 2 - paddleHeight ? 5 : 0
             );
           } else if (playerId === 2 && deltaY !== 0) {
-            move.y = constrain(
-              deltaY,
-              paddle2.y > height / 2 ? -5 : 0,
-              5
-            );
+            move.y = constrain(deltaY, paddle2.y > height / 2 ? -5 : 0, 5);
           }
           if (playerId === servingPlayer) {
             serveDirection = constrain(deltaX / 50, -1, 1);
