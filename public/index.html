@@ -6,6 +6,10 @@
     <title>CyberPuck</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/addons/p5.sound.min.js"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
       body {
         margin: 0;
@@ -14,7 +18,7 @@
         justify-content: center;
         align-items: center;
         height: 100vh;
-        font-family: "Courier New", monospace;
+        font-family: "Orbitron", monospace;
         color: #00ffcc;
         overflow: hidden;
       }
@@ -61,7 +65,7 @@
         background: transparent;
         border: 2px solid #ff007a;
         color: #00ffcc;
-        font-family: "Courier New", monospace;
+        font-family: "Orbitron", monospace;
         font-size: clamp(14px, 1.8vw, 18px);
         text-shadow: 0 0 5px #00ffcc;
         box-shadow: 0 0 10px #ff007a;
@@ -89,9 +93,10 @@
       let gameState = "waiting";
       let servingPlayer = 1;
       let serveTimer = 10;
-      let gameTimer = 180; // 3 минуты в секундах
+      let gameTimer = 180;
       let particles = [];
-      let hitSound, tableSound, goalSound, backgroundMusic;
+      let ballTrail = [];
+      let hitSound, strongHitSound, tableSound, goalSound, backgroundMusic;
       let canvasWidth = 900;
       let canvasHeight = 450;
       let paddleWidth = 60;
@@ -99,9 +104,11 @@
       let lastTouchX = null;
       let lastTouchY = null;
       let chargeStart = null;
+      let serveDirection = 0;
 
       function preload() {
         hitSound = loadSound("/sounds/hit.mp3");
+        strongHitSound = loadSound("/sounds/strong_hit.mp3");
         tableSound = loadSound("/sounds/table.mp3");
         goalSound = loadSound("/sounds/goal.mp3");
         backgroundMusic = loadSound("/sounds/background.mp3");
@@ -168,14 +175,18 @@
                 Math.abs(ball.dx) + Math.abs(ball.dy),
                 color(255, 0, 122)
               );
-              hitSound.play();
+              if (Math.abs(ball.dx) + Math.abs(ball.dy) > 15) {
+                strongHitSound.play();
+              } else {
+                hitSound.play();
+              }
             }
-            if (data.tableHit) {
+            if (data.wallHit) {
               createParticles(ball.x, ball.y, 10, color(0, 255, 204));
               tableSound.play();
             }
             if (data.goal) {
-              createParticles(ball.x, ball.y, 30, color(255, 0, 255));
+              createParticles(ball.x, ball.y, 50, color(255, 0, 255));
               goalSound.play();
             }
             document.getElementById(
@@ -223,15 +234,9 @@
       }
 
       function draw() {
-        // Динамический фон
         background(13, 13, 26, 200);
         drawCyberBackground();
-        // Рисуем сетку
-        stroke(0, 255, 204, 100);
-        strokeWeight(2);
-        line(width / 2, 0, width / 2, height);
-        fill(255, 0, 122);
-        rect(width / 2 - 5, height / 2 - 15, 10, 30);
+
         // Рисуем стол
         stroke(0, 255, 204, 50);
         strokeWeight(1);
@@ -245,17 +250,44 @@
         strokeWeight(4);
         line(0, 0, 0, height);
         line(width, 0, width, height);
-        line(0, height / 2, width, height / 2);
+        line(0, 0, width, 0);
+        line(0, height, width, height);
+
         // Рисуем ракетки
         fill(0, 255, 204);
         noStroke();
+        drawingContext.shadowBlur = 20;
+        drawingContext.shadowColor = `rgba(0, 255, 204, ${
+          Math.abs(paddle1.vx || 0) / 10
+        })`;
         rect(paddle1.x, paddle1.y, paddleWidth, paddleHeight);
-        rect(paddle2.x, paddle2.y, paddleWidth, paddleHeight);
-        drawingContext.shadowBlur = 15;
-        drawingContext.shadowColor = "#00ffcc";
-        rect(paddle1.x, paddle1.y, paddleWidth, paddleHeight);
+        drawingContext.shadowColor = `rgba(0, 255, 204, ${
+          Math.abs(paddle2.vx || 0) / 10
+        })`;
         rect(paddle2.x, paddle2.y, paddleWidth, paddleHeight);
         drawingContext.shadowBlur = 0;
+
+        // Рисуем след мяча
+        for (let i = ballTrail.length - 1; i >= 0; i--) {
+          let trail = ballTrail[i];
+          fill(255, 0, 122, trail.alpha);
+          noStroke();
+          ellipse(trail.x, trail.y, width * 0.01, width * 0.01);
+          trail.alpha -= 5;
+          if (trail.alpha <= 0) {
+            ballTrail.splice(i, 1);
+          }
+        }
+
+        // Рисуем мяч
+        fill(255, 0, 122);
+        drawingContext.shadowBlur = 15;
+        drawingContext.shadowColor = `rgba(255, 0, 122, ${
+          Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy) / 20
+        })`;
+        ellipse(ball.x, ball.y, width * 0.0167, width * 0.0167);
+        drawingContext.shadowBlur = 0;
+
         // Рисуем частицы
         for (let i = particles.length - 1; i >= 0; i--) {
           particles[i].update();
@@ -264,17 +296,9 @@
             particles.splice(i, 1);
           }
         }
-        // Рисуем мяч
-        fill(255, 0, 122);
-        ellipse(ball.x, ball.y, width * 0.0167, width * 0.0167);
-        drawingContext.shadowBlur = 10;
-        drawingContext.shadowColor = "#ff007a";
-        ellipse(ball.x, ball.y, width * 0.0167, width * 0.0167);
-        drawingContext.shadowBlur = 0;
       }
 
       function drawCyberBackground() {
-        // Неоновые линии для киберпанковой атмосферы
         stroke(255, 0, 122, 50);
         strokeWeight(2);
         for (let i = 0; i < 10; i++) {
@@ -282,7 +306,7 @@
           line(x, 0, x - 50, height);
         }
         stroke(0, 255, 204, 50);
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < Bundle10; i++) {
           let y = ((frameCount + i * 80) % (height + 80)) - 40;
           line(0, y, width, y);
         }
@@ -297,9 +321,7 @@
       }
 
       function keyPressed() {
-        if (gameState !== "playing") {
-          return;
-        }
+        if (gameState !== "playing") return;
         let move = {};
         if (keyCode === LEFT_ARROW || key === "a" || key === "A") {
           move.x = -10;
@@ -346,10 +368,13 @@
       function keyReleased() {
         if (gameState !== "playing" || playerId !== servingPlayer) return;
         if (keyCode === 32 && chargeStart !== null) {
-          let chargeTime = (millis() - chargeStart) / 1000; // Время в секундах
-          let charge = min(2, 1 + chargeTime * 0.5); // Максимум x2
-          ws.send(JSON.stringify({ type: "serve", charge }));
+          let chargeTime = (millis() - chargeStart) / 1000;
+          let charge = min(3, 1 + chargeTime * 0.75);
+          ws.send(
+            JSON.stringify({ type: "serve", charge, direction: serveDirection })
+          );
           chargeStart = null;
+          serveDirection = 0;
         }
       }
 
@@ -377,6 +402,9 @@
                 ? 5
                 : 0;
           }
+          if (playerId === servingPlayer) {
+            serveDirection = deltaX / 50; // Угол подачи от -1 до 1
+          }
           if (move.x || move.y) {
             ws.send(JSON.stringify({ type: "move", direction: move }));
           }
@@ -388,14 +416,21 @@
 
       function touchEnded() {
         if (gameState === "playing" && playerId === servingPlayer) {
-          ws.send(JSON.stringify({ type: "serve", charge: 1 }));
+          ws.send(
+            JSON.stringify({
+              type: "serve",
+              charge: 1,
+              direction: serveDirection,
+            })
+          );
+          serveDirection = 0;
         }
         lastTouchX = null;
         lastTouchY = null;
       }
 
       function createParticles(x, y, intensity, col) {
-        let count = Math.min(30, Math.floor(10 + intensity * 0.7));
+        let count = Math.min(50, Math.floor(15 + intensity));
         for (let i = 0; i < count; i++) {
           particles.push(new Particle(x, y, col));
         }
@@ -405,9 +440,9 @@
         constructor(x, y, col) {
           this.x = x;
           this.y = y;
-          this.vx = random(-4, 4);
-          this.vy = random(-4, 4);
-          this.lifetime = 50;
+          this.vx = random(-5, 5);
+          this.vy = random(-5, 5);
+          this.lifetime = 60;
           this.color = col || color(255, 0, 122);
         }
         update() {
@@ -417,8 +452,17 @@
         }
         show() {
           noStroke();
-          fill(this.color, this.lifetime * 5);
-          ellipse(this.x, this.y, width * 0.01, width * 0.01);
+          fill(this.color, this.lifetime * 4);
+          ellipse(this.x, this.y, width * 0.012, width * 0.012);
+        }
+      }
+
+      function update() {
+        if (gameState === "playing") {
+          ballTrail.push({ x: ball.x, y: ball.y, alpha: 100 });
+          if (ballTrail.length > 20) {
+            ballTrail.shift();
+          }
         }
       }
     </script>

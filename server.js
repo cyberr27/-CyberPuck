@@ -10,14 +10,13 @@ app.use(express.static("public"));
 
 let players = [];
 let gameState = {
-  paddle1: { x: 400, y: 30, score: 0, vx: 0 }, // Добавляем скорость ракетки
+  paddle1: { x: 400, y: 30, score: 0, vx: 0 },
   paddle2: { x: 400, y: 420, score: 0, vx: 0 },
   ball: { x: 450, y: 225, dx: 0, dy: 0, spin: 0 },
   status: "waiting",
   servingPlayer: 1,
   serveTimer: 10,
   gameTimer: 180,
-  tableHits: { player1: 0, player2: 0 },
   lastGoal: null,
   newGameRequests: new Set(),
   lastPing: new Map(),
@@ -67,7 +66,7 @@ wss.on("connection", (ws) => {
           gameState.paddle1.y += data.direction.y;
         if (data.direction.y > 0 && gameState.paddle1.y < 210)
           gameState.paddle1.y += data.direction.y;
-        gameState.paddle1.vx = data.direction.x || 0; // Сохраняем скорость ракетки
+        gameState.paddle1.vx = data.direction.x || 0;
       } else if (playerId === 2) {
         if (data.direction.x < 0 && gameState.paddle2.x > 0)
           gameState.paddle2.x += data.direction.x;
@@ -80,14 +79,13 @@ wss.on("connection", (ws) => {
         gameState.paddle2.vx = data.direction.x || 0;
       }
     } else if (data.type === "serve" && playerId === gameState.servingPlayer) {
-      let angle = (Math.random() * Math.PI) / 10;
+      let angle = (Math.PI / 6) * (data.direction || Math.random() - 0.5);
       let speed = 6 * data.charge;
-      gameState.ball.dx =
-        speed * Math.sin(angle) * (Math.random() > 0.5 ? 1 : -1);
-      gameState.ball.dy = playerId === 1 ? speed : -speed;
-      gameState.ball.spin = 0;
+      gameState.ball.dx = speed * Math.sin(angle);
+      gameState.ball.dy =
+        playerId === 1 ? speed * Math.cos(angle) : -speed * Math.cos(angle);
+      gameState.ball.spin = data.direction * 0.5;
       gameState.serveTimer = 10;
-      gameState.tableHits = { player1: 0, player2: 0 };
     } else if (data.type === "newGame" && gameState.status === "gameOver") {
       gameState.newGameRequests.add(playerId);
       if (gameState.newGameRequests.size === 2) {
@@ -151,90 +149,60 @@ function updateGame() {
   } else {
     gameState.ball.x += gameState.ball.dx;
     gameState.ball.y += gameState.ball.dy;
-    gameState.ball.dx += gameState.ball.spin * 0.05; // Усиливаем влияние спина
-    gameState.ball.spin *= 0.98; // Затухание спина
+    gameState.ball.dx += gameState.ball.spin * 0.05;
+    gameState.ball.spin *= 0.98;
+    gameState.ball.dx *= 0.995; // Трение
+    gameState.ball.dy *= 0.995;
   }
 
+  let wallHit = false;
   if (gameState.ball.x <= 15 || gameState.ball.x >= 885) {
     gameState.ball.dx *= -1;
     gameState.ball.spin *= -0.5;
+    wallHit = true;
   }
 
   let hit = false;
-  let tableHit = false;
-  // Проверка столкновения с плоскостью ракетки 1
   if (
-    gameState.ball.y <= gameState.paddle1.y &&
+    gameState.ball.y <= gameState.paddle1.y + 15 &&
     gameState.ball.dy > 0 &&
     gameState.ball.x >= gameState.paddle1.x &&
     gameState.ball.x <= gameState.paddle1.x + 60
   ) {
     let hitPos = (gameState.ball.x - gameState.paddle1.x - 30) / 30;
-    gameState.ball.dx = 4 * hitPos + gameState.paddle1.vx * 0.2; // Учитываем скорость ракетки
+    gameState.ball.dx = 5 * hitPos + gameState.paddle1.vx * 0.3;
     gameState.ball.dy = -Math.abs(gameState.ball.dy + 0.5) * 1.15;
-    gameState.ball.spin = hitPos * 0.8 + gameState.paddle1.vx * 0.1;
-    gameState.ball.dx *= 1.1;
-    if (Math.abs(gameState.ball.dx) > 10)
-      gameState.ball.dx = 10 * Math.sign(gameState.ball.dx); // Ограничение скорости
-    if (Math.abs(gameState.ball.dy) > 16)
-      gameState.ball.dy = 16 * Math.sign(gameState.ball.dy);
+    gameState.ball.spin = hitPos * 1.0 + gameState.paddle1.vx * 0.15;
+    gameState.ball.dx *= 1.15;
+    if (Math.abs(gameState.ball.dx) > 12)
+      gameState.ball.dx = 12 * Math.sign(gameState.ball.dx);
+    if (Math.abs(gameState.ball.dy) > 18)
+      gameState.ball.dy = 18 * Math.sign(gameState.ball.dy);
     hit = true;
-    gameState.tableHits.player1 = 0;
-  }
-  // Проверка столкновения с плоскостью ракетки 2
-  else if (
-    gameState.ball.y >= gameState.paddle2.y + 15 &&
+  } else if (
+    gameState.ball.y >= gameState.paddle2.y &&
     gameState.ball.dy < 0 &&
     gameState.ball.x >= gameState.paddle2.x &&
     gameState.ball.x <= gameState.paddle2.x + 60
   ) {
     let hitPos = (gameState.ball.x - gameState.paddle2.x - 30) / 30;
-    gameState.ball.dx = 4 * hitPos + gameState.paddle2.vx * 0.2;
+    gameState.ball.dx = 5 * hitPos + gameState.paddle2.vx * 0.3;
     gameState.ball.dy = Math.abs(gameState.ball.dy + 0.5) * 1.15;
-    gameState.ball.spin = hitPos * 0.8 + gameState.paddle2.vx * 0.1;
-    gameState.ball.dx *= 1.1;
-    if (Math.abs(gameState.ball.dx) > 10)
-      gameState.ball.dx = 10 * Math.sign(gameState.ball.dx);
-    if (Math.abs(gameState.ball.dy) > 16)
-      gameState.ball.dy = halo16 * Math.sign(gameState.ball.dy);
+    gameState.ball.spin = hitPos * 1.0 + gameState.paddle2.vx * 0.15;
+    gameState.ball.dx *= 1.15;
+    if (Math.abs(gameState.ball.dx) > 12)
+      gameState.ball.dx = 12 * Math.sign(gameState.ball.dx);
+    if (Math.abs(gameState.ball.dy) > 18)
+      gameState.ball.dy = 18 * Math.sign(gameState.ball.dy);
     hit = true;
-    gameState.tableHits.player2 = 0;
-  } else if (
-    gameState.ball.y >= 225 &&
-    gameState.ball.y <= 230 &&
-    gameState.ball.dy > 0 &&
-    gameState.tableHits.player2 === 0
-  ) {
-    gameState.ball.y = 225;
-    gameState.ball.dy *= -0.9;
-    gameState.ball.spin *= 0.8;
-    gameState.tableHits.player2 = 1;
-    tableHit = true;
-  } else if (
-    gameState.ball.y <= 225 &&
-    gameState.ball.y >= 220 &&
-    gameState.ball.dy < 0 &&
-    gameState.tableHits.player1 === 0
-  ) {
-    gameState.ball.y = 225;
-    gameState.ball.dy *= -0.9;
-    gameState.ball.spin *= 0.8;
-    gameState.tableHits.player1 = 1;
-    tableHit = true;
   }
 
   let goal = null;
-  if (
-    gameState.ball.y < 0 ||
-    (gameState.ball.y <= 225 && gameState.tableHits.player1 >= 1)
-  ) {
+  if (gameState.ball.y < 0) {
     gameState.paddle2.score += 1;
     goal = 2;
     resetBall(false);
-  } else if (
-    gameState.ball.y > 450 ||
-    (gameState.ball.y >= 225 && gameState.tableHits.player2 >= 1)
-  ) {
+  } else if (gameState.ball.y > 450) {
     gameState.paddle1.score += 1;
     goal = 1;
     resetBall(false);
@@ -267,7 +235,7 @@ function updateGame() {
     serveTimer: gameState.serveTimer,
     gameTimer: gameState.gameTimer,
     hit,
-    tableHit,
+    wallHit,
     goal,
   });
 }
@@ -281,7 +249,6 @@ function resetBall(isNewGame) {
   gameState.ball.dx = 0;
   gameState.ball.dy = 0;
   gameState.ball.spin = 0;
-  gameState.tableHits = { player1: 0, player2: 0 };
   gameState.serveTimer = 10;
 }
 
@@ -296,7 +263,7 @@ function broadcast(data) {
 setInterval(() => {
   const now = Date.now();
   players = players.filter((player) => {
-    if (now - player.lastPing > 100000000) {
+    if (now - player.lastPing > 10000) {
       player.close();
       return false;
     }
