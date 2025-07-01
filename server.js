@@ -10,13 +10,13 @@ app.use(express.static("public"));
 
 let players = [];
 let gameState = {
-  paddle1: { x: 400, y: 30, score: 0 },
-  paddle2: { x: 400, y: 420, score: 0 },
+  paddle1: { x: 400, y: 30, score: 0, vx: 0 }, // Добавляем скорость ракетки
+  paddle2: { x: 400, y: 420, score: 0, vx: 0 },
   ball: { x: 450, y: 225, dx: 0, dy: 0, spin: 0 },
   status: "waiting",
   servingPlayer: 1,
   serveTimer: 10,
-  gameTimer: 180, // 3 минуты
+  gameTimer: 180,
   tableHits: { player1: 0, player2: 0 },
   lastGoal: null,
   newGameRequests: new Set(),
@@ -67,6 +67,7 @@ wss.on("connection", (ws) => {
           gameState.paddle1.y += data.direction.y;
         if (data.direction.y > 0 && gameState.paddle1.y < 210)
           gameState.paddle1.y += data.direction.y;
+        gameState.paddle1.vx = data.direction.x || 0; // Сохраняем скорость ракетки
       } else if (playerId === 2) {
         if (data.direction.x < 0 && gameState.paddle2.x > 0)
           gameState.paddle2.x += data.direction.x;
@@ -76,6 +77,7 @@ wss.on("connection", (ws) => {
           gameState.paddle2.y += data.direction.y;
         if (data.direction.y > 0 && gameState.paddle2.y < 435)
           gameState.paddle2.y += data.direction.y;
+        gameState.paddle2.vx = data.direction.x || 0;
       }
     } else if (data.type === "serve" && playerId === gameState.servingPlayer) {
       let angle = (Math.random() * Math.PI) / 10;
@@ -149,7 +151,8 @@ function updateGame() {
   } else {
     gameState.ball.x += gameState.ball.dx;
     gameState.ball.y += gameState.ball.dy;
-    gameState.ball.dx += gameState.ball.spin * 0.03;
+    gameState.ball.dx += gameState.ball.spin * 0.05; // Усиливаем влияние спина
+    gameState.ball.spin *= 0.98; // Затухание спина
   }
 
   if (gameState.ball.x <= 15 || gameState.ball.x >= 885) {
@@ -159,38 +162,41 @@ function updateGame() {
 
   let hit = false;
   let tableHit = false;
+  // Проверка столкновения с плоскостью ракетки 1
   if (
-    gameState.ball.y <= 45 &&
-    gameState.ball.y >= 30 &&
+    gameState.ball.y <= gameState.paddle1.y &&
+    gameState.ball.dy > 0 &&
     gameState.ball.x >= gameState.paddle1.x &&
     gameState.ball.x <= gameState.paddle1.x + 60
   ) {
     let hitPos = (gameState.ball.x - gameState.paddle1.x - 30) / 30;
-    gameState.ball.dx = 4 * hitPos;
+    gameState.ball.dx = 4 * hitPos + gameState.paddle1.vx * 0.2; // Учитываем скорость ракетки
     gameState.ball.dy = -Math.abs(gameState.ball.dy + 0.5) * 1.15;
-    gameState.ball.spin = hitPos * 0.8;
+    gameState.ball.spin = hitPos * 0.8 + gameState.paddle1.vx * 0.1;
     gameState.ball.dx *= 1.1;
-    if (Math.abs(gameState.ball.dx) > 8)
-      gameState.ball.dx = 8 * Math.sign(gameState.ball.dx);
-    if (Math.abs(gameState.ball.dy) > 14)
-      gameState.ball.dy = 14 * Math.sign(gameState.ball.dy);
+    if (Math.abs(gameState.ball.dx) > 10)
+      gameState.ball.dx = 10 * Math.sign(gameState.ball.dx); // Ограничение скорости
+    if (Math.abs(gameState.ball.dy) > 16)
+      gameState.ball.dy = 16 * Math.sign(gameState.ball.dy);
     hit = true;
     gameState.tableHits.player1 = 0;
-  } else if (
-    gameState.ball.y >= 405 &&
-    gameState.ball.y <= 420 &&
+  }
+  // Проверка столкновения с плоскостью ракетки 2
+  else if (
+    gameState.ball.y >= gameState.paddle2.y + 15 &&
+    gameState.ball.dy < 0 &&
     gameState.ball.x >= gameState.paddle2.x &&
     gameState.ball.x <= gameState.paddle2.x + 60
   ) {
     let hitPos = (gameState.ball.x - gameState.paddle2.x - 30) / 30;
-    gameState.ball.dx = 4 * hitPos;
+    gameState.ball.dx = 4 * hitPos + gameState.paddle2.vx * 0.2;
     gameState.ball.dy = Math.abs(gameState.ball.dy + 0.5) * 1.15;
-    gameState.ball.spin = hitPos * 0.8;
+    gameState.ball.spin = hitPos * 0.8 + gameState.paddle2.vx * 0.1;
     gameState.ball.dx *= 1.1;
-    if (Math.abs(gameState.ball.dx) > 8)
-      gameState.ball.dx = 8 * Math.sign(gameState.ball.dx);
-    if (Math.abs(gameState.ball.dy) > 14)
-      gameState.ball.dy = 14 * Math.sign(gameState.ball.dy);
+    if (Math.abs(gameState.ball.dx) > 10)
+      gameState.ball.dx = 10 * Math.sign(gameState.ball.dx);
+    if (Math.abs(gameState.ball.dy) > 16)
+      gameState.ball.dy = halo16 * Math.sign(gameState.ball.dy);
     hit = true;
     gameState.tableHits.player2 = 0;
   } else if (
@@ -287,7 +293,6 @@ function broadcast(data) {
   });
 }
 
-// Проверка активности игроков
 setInterval(() => {
   const now = Date.now();
   players = players.filter((player) => {
