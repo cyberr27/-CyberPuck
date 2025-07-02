@@ -14,8 +14,8 @@ function constrain(value, min, max) {
 
 let players = [];
 let gameState = {
-  paddle1: { x: 0.5, y: 0.0667, score: 0, vx: 0 },
-  paddle2: { x: 0.5, y: 0.9333, score: 0, vx: 0 },
+  paddle1: { x: 0.5, y: 0.0667, score: 0, vx: 0, charge: 1 },
+  paddle2: { x: 0.5, y: 0.9333, score: 0, vx: 0, charge: 1 },
   ball: { x: 0.5, y: 0.5, dx: 0, dy: 0, spin: 0 },
   status: "waiting",
   servingPlayer: 1,
@@ -53,6 +53,9 @@ wss.on("connection", (ws) => {
       servingPlayer: gameState.servingPlayer,
       serveTimer: gameState.serveTimer,
       gameTimer: gameState.gameTimer,
+      paddle1: gameState.paddle1,
+      paddle2: gameState.paddle2,
+      ball: gameState.ball,
     });
   }
 
@@ -117,6 +120,9 @@ wss.on("connection", (ws) => {
           servingPlayer: gameState.servingPlayer,
           serveTimer: gameState.serveTimer,
           gameTimer: gameState.gameTimer,
+          paddle1: gameState.paddle1,
+          paddle2: gameState.paddle2,
+          ball: gameState.ball,
         });
       }
     }
@@ -211,21 +217,6 @@ function updateGame() {
     gameState.ball.x = constrain(gameState.ball.x, 0.0167, 1 - 0.0167);
     gameState.ball.spin *= -0.6;
     wallHit = true;
-    if (gameState.ball.x <= 0 || gameState.ball.x >= 1) {
-      gameState.servingPlayer = gameState.lastHitPlayer === 1 ? 2 : 1;
-      resetBall(false);
-      broadcast({
-        type: "update",
-        paddle1: gameState.paddle1,
-        paddle2: gameState.paddle2,
-        ball: gameState.ball,
-        servingPlayer: gameState.servingPlayer,
-        serveTimer: gameState.serveTimer,
-        gameTimer: gameState.gameTimer,
-        foul: true,
-      });
-      return;
-    }
   }
 
   let hit = false;
