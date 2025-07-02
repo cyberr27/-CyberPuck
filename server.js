@@ -12,7 +12,7 @@ function constrain(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
-letividad = [];
+let players = [];
 let gameState = {
   paddle1: { x: 0.5, y: 0.0667, score: 0, vx: 0, charge: 1 },
   paddle2: { x: 0.5, y: 0.9333, score: 0, vx: 0, charge: 1 },
