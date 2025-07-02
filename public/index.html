@@ -89,7 +89,7 @@
       let playerId = null;
       let paddle1 = { x: 0.5, y: 0.0667, score: 0, vx: 0, charge: 1 };
       let paddle2 = { x: 0.5, y: 0.9333, score: 0, vx: 0, charge: 1 };
-      let ball = { x: 0.5, y: 0.5, dx: 0, dy: 0, spin: 0 };
+      let ball = { x: 0.5, y: 0.5, dx: 0, dy: 0 };
       let gameState = "waiting";
       let servingPlayer = 1;
       let serveTimer = 7;
@@ -184,7 +184,6 @@
               y: data.ball.y,
               dx: data.ball.dx,
               dy: data.ball.dy,
-              spin: data.ball.spin,
             };
             servingPlayer = data.servingPlayer;
             serveTimer = data.serveTimer;
@@ -197,7 +196,7 @@
                 color(255, 0, 122)
               );
               tableShake = { x: random(-2, 2), y: random(-2, 2), duration: 10 };
-              if (Math.abs(ball.dx) + Math.abs(ball.dy) > 0.015) {
+              if (Math.abs(ball.dx) + Math.abs(ball.dy) > 0.01) {
                 strongHitSound.play();
               } else {
                 hitSound.play();
@@ -276,7 +275,7 @@
         background(13, 13, 26, 200);
         drawCyberBackground();
 
-        // Пульсирующие неоновые линии на границах стола
+        // Пульсирующие неоновые линии
         neonPulse = (neonPulse + 0.05) % TWO_PI;
         let neonAlpha = map(sin(neonPulse), -1, 1, 100, 255);
         stroke(255, 0, 122, neonAlpha);
@@ -307,7 +306,7 @@
         strokeWeight(2);
         line(0, height / 2, width, height / 2);
 
-        // Рисуем ракетки с улучшенным свечением
+        // Рисуем ракетки
         noStroke();
         let paddle1Glow = 20 + Math.abs(paddle1.vx) * 1000;
         let paddle2Glow = 20 + Math.abs(paddle2.vx) * 1000;
@@ -316,7 +315,7 @@
         fill(0, 255, 204);
         rect(
           constrain(paddle1.x * width, 0, width - paddleWidth * width),
-          constrain(paddle1.y * height, 0, height / 2),
+          constrain(paddle1.y * height, 0, height * 0.4),
           paddleWidth * width,
           paddleHeight * height,
           5
@@ -327,7 +326,7 @@
           constrain(paddle2.x * width, 0, width - paddleWidth * width),
           constrain(
             paddle2.y * height,
-            height / 2,
+            height * 0.6,
             height - paddleHeight * height
           ),
           paddleWidth * width,
@@ -336,7 +335,7 @@
         );
         drawingContext.shadowBlur = 0;
 
-        // Рисуем индикатор энергии для ракеток
+        // Рисуем индикатор энергии
         let energy1 = map(
           Math.abs(paddle1.vx),
           0,
@@ -360,7 +359,7 @@
           5
         );
 
-        // Рисуем улучшенный след мяча
+        // Рисуем след мяча
         for (let i = ballTrail.length - 1; i >= 0; i--) {
           let trail = ballTrail[i];
           let alpha = map(i, 0, ballTrail.length - 1, 50, 255);
@@ -451,31 +450,20 @@
         if (keyCode === RIGHT_ARROW || key === "d" || key === "D") {
           move.x = 0.0078;
         }
-        if (
-          (keyCode === UP_ARROW || key === "w" || key === "W") &&
-          playerId === 1
-        ) {
-          move.y = -0.0111;
-        }
-        if (
-          (keyCode === DOWN_ARROW || key === "s" || key === "S") &&
-          playerId === 1
-        ) {
-          move.y = 0.0111;
-        }
-        if (
-          (keyCode === UP_ARROW || key === "w" || key === "W") &&
-          playerId === 2 &&
-          paddle2.y > 0.5
-        ) {
-          move.y = -0.0111;
-        }
-        if (
-          (keyCode === DOWN_ARROW || key === "s" || key === "S") &&
-          playerId === 2 &&
-          paddle2.y < 1 - paddleHeight
-        ) {
-          move.y = 0.0111;
+        if (playerId === 1) {
+          if (keyCode === UP_ARROW || key === "w" || key === "W") {
+            move.y = -0.0111; // Вверх уменьшает y
+          }
+          if (keyCode === DOWN_ARROW || key === "s" || key === "S") {
+            move.y = 0.0111; // Вниз увеличивает y
+          }
+        } else if (playerId === 2) {
+          if (keyCode === UP_ARROW || key === "w" || key === "W") {
+            move.y = -0.0111; // Вверх уменьшает y
+          }
+          if (keyCode === DOWN_ARROW || key === "s" || key === "S") {
+            move.y = 0.0111; // Вниз увеличивает y
+          }
         }
         if (move.x || move.y) {
           ws.send(JSON.stringify({ type: "move", direction: move }));
@@ -493,10 +481,8 @@
           move.x = constrain(deltaX * 10, -0.0078, 0.0078);
           if (playerId === 1) {
             move.y = constrain(deltaY * 10, -0.0111, 0.0111);
-          } else if (playerId === 2 && paddle2.y > 0.5) {
-            move.y = constrain(deltaY * 10, -0.0111, 0);
-          } else if (playerId === 2 && paddle2.y < 1 - paddleHeight) {
-            move.y = constrain(deltaY * 10, 0, 0.0111);
+          } else if (playerId === 2) {
+            move.y = constrain(deltaY * 10, -0.0111, 0.0111);
           }
           if (move.x || move.y) {
             ws.send(JSON.stringify({ type: "move", direction: move }));
