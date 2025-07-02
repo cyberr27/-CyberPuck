@@ -189,14 +189,15 @@
             serveTimer = data.serveTimer;
             gameTimer = data.gameTimer;
             if (data.hit && hitSound && strongHitSound) {
+              let hitIntensity = Math.abs(ball.dx) + Math.abs(ball.dy);
               createParticles(
                 ball.x * width,
                 ball.y * height,
-                Math.abs(ball.dx) + Math.abs(ball.dy),
+                hitIntensity * 1.5,
                 color(255, 0, 122)
               );
               tableShake = { x: random(-2, 2), y: random(-2, 2), duration: 10 };
-              if (Math.abs(ball.dx) + Math.abs(ball.dy) > 0.01) {
+              if (hitIntensity > 0.01) {
                 strongHitSound.play();
               } else {
                 hitSound.play();
