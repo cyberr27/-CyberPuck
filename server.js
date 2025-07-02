@@ -103,16 +103,6 @@ wss.on("connection", (ws) => {
           foul: true,
         });
       }
-    } else if (data.type === "serve" && playerId === gameState.servingPlayer) {
-      let angle = (Math.PI / 4) * (data.direction || Math.random() - 0.5);
-      let speed = 0.007 * data.charge;
-      gameState.ball.dx = speed * Math.sin(angle);
-      gameState.ball.dy =
-        playerId === 1 ? speed * Math.cos(angle) : -speed * Math.cos(angle);
-      gameState.ball.spin = data.direction * 0.3;
-      gameState.serveTimer = 7;
-      gameState.lastHitPlayer = playerId;
-      gameState.hitTimer = 7;
     } else if (data.type === "newGame" && gameState.status === "gameOver") {
       gameState.newGameRequests.add(playerId);
       if (gameState.newGameRequests.size === 2) {
@@ -163,11 +153,29 @@ function updateGame() {
     return;
   }
 
-  // Проверка таймера на удар
-  if (gameState.ball.dx !== 0 || gameState.ball.dy !== 0) {
+  // Обновление таймера подачи и удара
+  if (gameState.ball.dx === 0 && gameState.ball.dy === 0) {
+    // Мяч в состоянии подачи
+    gameState.serveTimer -= 1 / 60;
+    if (gameState.serveTimer <= 0) {
+      gameState.servingPlayer = gameState.servingPlayer === 1 ? 2 : 1;
+      resetBall(false);
+      broadcast({
+        type: "update",
+        paddle1: gameState.paddle1,
+        paddle2: gameState.paddle2,
+        ball: gameState.ball,
+        servingPlayer: gameState.servingPlayer,
+        serveTimer: gameState.serveTimer,
+        gameTimer: gameState.gameTimer,
+        foul: true,
+      });
+      return;
+    }
+  } else {
+    // Мяч в движении, проверяем таймер удара
     gameState.hitTimer -= 1 / 60;
     if (gameState.hitTimer <= 0) {
-      // Нарушение: не ударили по шайбе вовремя
       gameState.servingPlayer = gameState.lastHitPlayer === 1 ? 2 : 1;
       resetBall(false);
       gameState.hitTimer = 7;
@@ -183,34 +191,25 @@ function updateGame() {
       });
       return;
     }
-  } else if (
-    gameState.serveTimer > 0 &&
-    gameState.ball.dx === 0 &&
-    gameState.ball.dy === 0
-  ) {
-    gameState.serveTimer -= 1 / 60;
-    if (gameState.serveTimer <= 0) {
-      gameState.servingPlayer = gameState.servingPlayer === 1 ? 2 : 1;
-      resetBall(false);
-    }
-  } else {
-    gameState.ball.x += gameState.ball.dx;
-    gameState.ball.y += gameState.ball.dy;
-    gameState.ball.dx += gameState.ball.spin * 0.0003;
-    gameState.ball.spin *= 0.99;
-    gameState.ball.dx *= 0.995;
-    gameState.ball.dy *= 0.995;
+  }
 
-    // Ограничение скорости мяча
-    let speed = Math.sqrt(
-      gameState.ball.dx * gameState.ball.dx +
-        gameState.ball.dy * gameState.ball.dy
-    );
-    if (speed > 0.015) {
-      let factor = 0.015 / speed;
-      gameState.ball.dx *= factor;
-      gameState.ball.dy *= factor;
-    }
+  // Обновление позиции мяча
+  gameState.ball.x += gameState.ball.dx;
+  gameState.ball.y += gameState.ball.dy;
+  gameState.ball.dx += gameState.ball.spin * 0.0003;
+  gameState.ball.spin *= 0.99;
+  gameState.ball.dx *= 0.995;
+  gameState.ball.dy *= 0.995;
+
+  // Ограничение скорости мяча
+  let speed = Math.sqrt(
+    gameState.ball.dx * gameState.ball.dx +
+      gameState.ball.dy * gameState.ball.dy
+  );
+  if (speed > 0.015) {
+    let factor = 0.015 / speed;
+    gameState.ball.dx *= factor;
+    gameState.ball.dy *= factor;
   }
 
   let wallHit = false;
@@ -219,7 +218,6 @@ function updateGame() {
     gameState.ball.x = constrain(gameState.ball.x, 0.0167, 1 - 0.0167);
     gameState.ball.spin *= -0.6;
     wallHit = true;
-    // Вылет шайбы за пределы стола
     if (gameState.ball.x <= 0 || gameState.ball.x >= 1) {
       gameState.servingPlayer = gameState.lastHitPlayer === 1 ? 2 : 1;
       resetBall(false);
@@ -246,41 +244,69 @@ function updateGame() {
   if (
     gameState.ball.y <= gameState.paddle1.y + paddleHeight + ballRadius &&
     gameState.ball.y >= gameState.paddle1.y - ballRadius &&
-    gameState.ball.dy > 0 &&
     gameState.ball.x >= gameState.paddle1.x - ballRadius &&
     gameState.ball.x <= gameState.paddle1.x + paddleWidth + ballRadius
   ) {
     let hitPos =
       (gameState.ball.x - gameState.paddle1.x - paddleWidth / 2) /
       (paddleWidth / 2);
-    gameState.ball.dx = 0.006 * hitPos + gameState.paddle1.vx * 0.4;
-    gameState.ball.dy = -Math.abs(gameState.ball.dy) * 1.2;
-    gameState.ball.spin = hitPos * 0.0015 + gameState.paddle1.vx * 0.2;
-    gameState.ball.y = gameState.paddle1.y - ballRadius;
-    gameState.ball.dx *= 1.1;
+    let charge = gameState.ball.dx === 0 && gameState.ball.dy === 0 ? 1.5 : 1.2; // Увеличение скорости при подаче
+    if (gameState.ball.dx === 0 && gameState.ball.dy === 0) {
+      // Подача
+      if (gameState.servingPlayer === 1) {
+        let angle = (Math.PI / 4) * (hitPos || Math.random() - 0.5);
+        gameState.ball.dx = 0.007 * charge * Math.sin(angle);
+        gameState.ball.dy = 0.007 * charge * Math.cos(angle);
+        gameState.ball.spin = hitPos * 0.3;
+        gameState.lastHitPlayer = 1;
+        gameState.serveTimer = 7;
+        gameState.hitTimer = 7;
+      }
+    } else if (gameState.ball.dy > 0) {
+      // Обычный отскок
+      gameState.ball.dx = 0.006 * hitPos + gameState.paddle1.vx * 0.4;
+      gameState.ball.dy = -Math.abs(gameState.ball.dy) * charge;
+      gameState.ball.spin = hitPos * 0.0015 + gameState.paddle1.vx * 0.2;
+      gameState.ball.y = gameState.paddle1.y - ballRadius;
+      gameState.ball.dx *= 1.1;
+      gameState.lastHitPlayer = 1;
+      gameState.hitTimer = 7;
+    }
     hit = true;
-    gameState.lastHitPlayer = 1;
-    gameState.hitTimer = 7; // Сброс таймера удара
   }
   // Столкновение с ракеткой игрока 2
   else if (
     gameState.ball.y >= gameState.paddle2.y - ballRadius &&
     gameState.ball.y <= gameState.paddle2.y + paddleHeight + ballRadius &&
-    gameState.ball.dy < 0 &&
     gameState.ball.x >= gameState.paddle2.x - ballRadius &&
     gameState.ball.x <= gameState.paddle2.x + paddleWidth + ballRadius
   ) {
     let hitPos =
       (gameState.ball.x - gameState.paddle2.x - paddleWidth / 2) /
       (paddleWidth / 2);
-    gameState.ball.dx = 0.006 * hitPos + gameState.paddle2.vx * 0.4;
-    gameState.ball.dy = Math.abs(gameState.ball.dy) * 1.2;
-    gameState.ball.spin = hitPos * 0.0015 + gameState.paddle2.vx * 0.2;
-    gameState.ball.y = gameState.paddle2.y + ballRadius;
-    gameState.ball.dx *= 1.1;
+    let charge = gameState.ball.dx === 0 && gameState.ball.dy === 0 ? 1.5 : 1.2;
+    if (gameState.ball.dx === 0 && gameState.ball.dy === 0) {
+      // Подача
+      if (gameState.servingPlayer === 2) {
+        let angle = (Math.PI / 4) * (hitPos || Math.random() - 0.5);
+        gameState.ball.dx = 0.007 * charge * Math.sin(angle);
+        gameState.ball.dy = -0.007 * charge * Math.cos(angle);
+        gameState.ball.spin = hitPos * 0.3;
+        gameState.lastHitPlayer = 2;
+        gameState.serveTimer = 7;
+        gameState.hitTimer = 7;
+      }
+    } else if (gameState.ball.dy < 0) {
+      // Обычный отскок
+      gameState.ball.dx = 0.006 * hitPos + gameState.paddle2.vx * 0.4;
+      gameState.ball.dy = Math.abs(gameState.ball.dy) * charge;
+      gameState.ball.spin = hitPos * 0.0015 + gameState.paddle2.vx * 0.2;
+      gameState.ball.y = gameState.paddle2.y + ballRadius;
+      gameState.ball.dx *= 1.1;
+      gameState.lastHitPlayer = 2;
+      gameState.hitTimer = 7;
+    }
     hit = true;
-    gameState.lastHitPlayer = 2;
-    gameState.hitTimer = 7; // Сброс таймера удара
   }
 
   let goal = null;
@@ -291,7 +317,7 @@ function updateGame() {
   ) {
     gameState.paddle2.score += 1;
     goal = 2;
-    gameState.servingPlayer = 1; // Подача переходит к защищавшемуся
+    gameState.servingPlayer = 1;
     resetBall(false);
   } else if (
     gameState.ball.y > 1 - 0.0083 &&
@@ -300,11 +326,10 @@ function updateGame() {
   ) {
     gameState.paddle1.score += 1;
     goal = 1;
-    gameState.servingPlayer = 2; // Подача переходит к защищавшемуся
+    gameState.servingPlayer = 2;
     resetBall(false);
   }
 
-  // Победа при достижении 7 очков
   if (gameState.paddle1.score >= 7) {
     gameState.status = "gameOver";
     broadcast({ type: "gameOver", winner: 1 });

@@ -101,10 +101,6 @@
       let canvasHeight = 450;
       let paddleWidth = 0.0667;
       let paddleHeight = 0.0333;
-      let lastTouchX = null;
-      let lastTouchY = null;
-      let chargeStart = null;
-      let serveDirection = 0;
       let tableShake = { x: 0, y: 0, duration: 0 };
 
       function preload() {
@@ -294,14 +290,8 @@
 
         // Рисуем ракетки
         noStroke();
-        let paddle1Glow =
-          playerId === 1 && chargeStart !== null
-            ? ((millis() - chargeStart) / 1000) * 40
-            : 20 + Math.abs(paddle1.vx) * 5;
-        let paddle2Glow =
-          playerId === 2 && chargeStart !== null
-            ? ((millis() - chargeStart) / 1000) * 40
-            : 20 + Math.abs(paddle2.vx) * 5;
+        let paddle1Glow = 20 + Math.abs(paddle1.vx) * 5;
+        let paddle2Glow = 20 + Math.abs(paddle2.vx) * 5;
         drawingContext.shadowBlur = paddle1Glow;
         drawingContext.shadowColor = `rgba(0, 255, 204, 0.9)`;
         fill(0, 255, 204);
@@ -441,24 +431,8 @@
         ) {
           move.y = 0.0111;
         }
-        if (keyCode === 32 && playerId === servingPlayer) {
-          chargeStart = millis();
-        }
         if (move.x || move.y) {
           ws.send(JSON.stringify({ type: "move", direction: move }));
-        }
-      }
-
-      function keyReleased() {
-        if (gameState !== "playing" || playerId !== servingPlayer) return;
-        if (keyCode === 32 && chargeStart !== null) {
-          let chargeTime = (millis() - chargeStart) / 1000;
-          let charge = min(3, 1 + chargeTime);
-          ws.send(
-            JSON.stringify({ type: "serve", charge, direction: serveDirection })
-          );
-          chargeStart = null;
-          serveDirection = 0;
         }
       }
 
@@ -480,9 +454,6 @@
           } else if (playerId === 2 && deltaY !== 0) {
             move.y = constrain(deltaY, paddle2.y > 0.5 ? -0.0111 : 0, 0.0111);
           }
-          if (playerId === servingPlayer) {
-            serveDirection = constrain(deltaX * 50, -1, 1);
-          }
           if (move.x || move.y) {
             ws.send(JSON.stringify({ type: "move", direction: move }));
           }
@@ -493,16 +464,6 @@
       }
 
       function touchEnded() {
-        if (gameState === "playing" && playerId === servingPlayer) {
-          ws.send(
-            JSON.stringify({
-              type: "serve",
-              charge: 1,
-              direction: serveDirection,
-            })
-          );
-          serveDirection = 0;
-        }
         lastTouchX = null;
         lastTouchY = null;
       }
