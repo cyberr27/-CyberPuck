@@ -8,7 +8,6 @@ const wss = new WebSocket.Server({ server });
 
 app.use(express.static("public"));
 
-// Функция constrain для ограничения значений
 function constrain(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
@@ -20,13 +19,13 @@ let gameState = {
   ball: { x: 0.5, y: 0.5, dx: 0, dy: 0, spin: 0 },
   status: "waiting",
   servingPlayer: 1,
-  serveTimer: 7, // 7 секунд на подачу
+  serveTimer: 7,
   gameTimer: 180,
   lastGoal: null,
   newGameRequests: new Set(),
   lastPing: new Map(),
-  lastHitPlayer: null, // Игрок, последний ударивший шайбу
-  hitTimer: 7, // Таймер на удар
+  lastHitPlayer: null,
+  hitTimer: 7,
 };
 
 wss.on("connection", (ws) => {
@@ -44,7 +43,7 @@ wss.on("connection", (ws) => {
 
   if (players.length === 2) {
     gameState.status = "playing";
-    gameState.servingPlayer = Math.random() < 0.5 ? 1 : 2; // Случайный выбор подающего
+    gameState.servingPlayer = Math.random() < 0.5 ? 1 : 2;
     gameState.serveTimer = 7;
     gameState.gameTimer = 180;
     gameState.newGameRequests.clear();
@@ -71,7 +70,7 @@ wss.on("connection", (ws) => {
           gameState.paddle1.x += data.direction.x;
         if (data.direction.y < 0 && gameState.paddle1.y > 0)
           gameState.paddle1.y += data.direction.y;
-        if (data.direction.y > 0 && gameState.paddle1.y < 0.5 - 0.0333)
+        if (data.direction.y > 0 && gameState.paddle1.y < 0.5)
           gameState.paddle1.y += data.direction.y;
         gameState.paddle1.vx = data.direction.x || 0;
       } else if (playerId === 2) {
@@ -85,9 +84,8 @@ wss.on("connection", (ws) => {
           gameState.paddle2.y += data.direction.y;
         gameState.paddle2.vx = data.direction.x || 0;
       }
-      // Проверка на нарушение: выход за свою половину поля
       if (
-        (playerId === 1 && gameState.paddle1.y > 0.5 - 0.0333) ||
+        (playerId === 1 && gameState.paddle1.y > 0.5) ||
         (playerId === 2 && gameState.paddle2.y < 0.5)
       ) {
         gameState.servingPlayer = playerId === 1 ? 2 : 1;
@@ -153,9 +151,7 @@ function updateGame() {
     return;
   }
 
-  // Обновление таймера подачи и удара
   if (gameState.ball.dx === 0 && gameState.ball.dy === 0) {
-    // Мяч в состоянии подачи
     gameState.serveTimer -= 1 / 60;
     if (gameState.serveTimer <= 0) {
       gameState.servingPlayer = gameState.servingPlayer === 1 ? 2 : 1;
@@ -173,7 +169,6 @@ function updateGame() {
       return;
     }
   } else {
-    // Мяч в движении, проверяем таймер удара
     gameState.hitTimer -= 1 / 60;
     if (gameState.hitTimer <= 0) {
       gameState.servingPlayer = gameState.lastHitPlayer === 1 ? 2 : 1;
@@ -193,7 +188,6 @@ function updateGame() {
     }
   }
 
-  // Обновление позиции мяча
   gameState.ball.x += gameState.ball.dx;
   gameState.ball.y += gameState.ball.dy;
   gameState.ball.dx += gameState.ball.spin * 0.0003;
@@ -201,7 +195,6 @@ function updateGame() {
   gameState.ball.dx *= 0.995;
   gameState.ball.dy *= 0.995;
 
-  // Ограничение скорости мяча
   let speed = Math.sqrt(
     gameState.ball.dx * gameState.ball.dx +
       gameState.ball.dy * gameState.ball.dy
@@ -240,7 +233,6 @@ function updateGame() {
   let paddleWidth = 0.0667;
   let paddleHeight = 0.0333;
 
-  // Столкновение с ракеткой игрока 1
   if (
     gameState.ball.y <= gameState.paddle1.y + paddleHeight + ballRadius &&
     gameState.ball.y >= gameState.paddle1.y - ballRadius &&
@@ -250,9 +242,8 @@ function updateGame() {
     let hitPos =
       (gameState.ball.x - gameState.paddle1.x - paddleWidth / 2) /
       (paddleWidth / 2);
-    let charge = gameState.ball.dx === 0 && gameState.ball.dy === 0 ? 1.5 : 1.2; // Увеличение скорости при подаче
+    let charge = gameState.ball.dx === 0 && gameState.ball.dy === 0 ? 1.5 : 1.2;
     if (gameState.ball.dx === 0 && gameState.ball.dy === 0) {
-      // Подача
       if (gameState.servingPlayer === 1) {
         let angle = (Math.PI / 4) * (hitPos || Math.random() - 0.5);
         gameState.ball.dx = 0.007 * charge * Math.sin(angle);
@@ -263,7 +254,6 @@ function updateGame() {
         gameState.hitTimer = 7;
       }
     } else if (gameState.ball.dy > 0) {
-      // Обычный отскок
       gameState.ball.dx = 0.006 * hitPos + gameState.paddle1.vx * 0.4;
       gameState.ball.dy = -Math.abs(gameState.ball.dy) * charge;
       gameState.ball.spin = hitPos * 0.0015 + gameState.paddle1.vx * 0.2;
@@ -273,9 +263,7 @@ function updateGame() {
       gameState.hitTimer = 7;
     }
     hit = true;
-  }
-  // Столкновение с ракеткой игрока 2
-  else if (
+  } else if (
     gameState.ball.y >= gameState.paddle2.y - ballRadius &&
     gameState.ball.y <= gameState.paddle2.y + paddleHeight + ballRadius &&
     gameState.ball.x >= gameState.paddle2.x - ballRadius &&
@@ -286,7 +274,6 @@ function updateGame() {
       (paddleWidth / 2);
     let charge = gameState.ball.dx === 0 && gameState.ball.dy === 0 ? 1.5 : 1.2;
     if (gameState.ball.dx === 0 && gameState.ball.dy === 0) {
-      // Подача
       if (gameState.servingPlayer === 2) {
         let angle = (Math.PI / 4) * (hitPos || Math.random() - 0.5);
         gameState.ball.dx = 0.007 * charge * Math.sin(angle);
@@ -297,7 +284,6 @@ function updateGame() {
         gameState.hitTimer = 7;
       }
     } else if (gameState.ball.dy < 0) {
-      // Обычный отскок
       gameState.ball.dx = 0.006 * hitPos + gameState.paddle2.vx * 0.4;
       gameState.ball.dy = Math.abs(gameState.ball.dy) * charge;
       gameState.ball.spin = hitPos * 0.0015 + gameState.paddle2.vx * 0.2;
