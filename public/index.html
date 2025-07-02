@@ -92,7 +92,7 @@
       let ball = { x: 0.5, y: 0.5, dx: 0, dy: 0, spin: 0 };
       let gameState = "waiting";
       let servingPlayer = 1;
-      let serveTimer = 10;
+      let serveTimer = 7; // Уменьшено до 7 секунд по правилам
       let gameTimer = 180;
       let particles = [];
       let ballTrail = [];
@@ -112,11 +112,15 @@
         strongHitSound = loadSound("/sounds/strong_hit.mp3");
         tableSound = loadSound("/sounds/table.mp3");
         goalSound = loadSound("/sounds/goal.mp3");
-        backgroundMusic = loadSound("/sounds/background.mp3", () => {
-          console.log("Фоновая музыка загружена");
-        }, (err) => {
-          console.error("Ошибка загрузки фоновой музыки:", err);
-        });
+        backgroundMusic = loadSound(
+          "/sounds/background.mp3",
+          () => {
+            console.log("Фоновая музыка загружена");
+          },
+          (err) => {
+            console.error("Ошибка загрузки фоновой музыки:", err);
+          }
+        );
       }
 
       function setup() {
@@ -202,9 +206,16 @@
               createGoalEffect(data.goal === 1 ? height : 0);
               goalSound.play();
             }
-            document.getElementById(
-              "status"
-            ).innerText = `Счёт: ${paddle1.score} - ${paddle2.score}`;
+            if (data.foul) {
+              document.getElementById(
+                "status"
+              ).innerText = `Фол! Подача переходит к Игроку ${servingPlayer}`;
+              setTimeout(() => {
+                document.getElementById(
+                  "status"
+                ).innerText = `Счёт: ${paddle1.score} - ${paddle2.score}`;
+              }, 2000);
+            }
             document.getElementById(
               "server"
             ).innerText = `Подача: Игрок ${servingPlayer}`;
@@ -267,7 +278,7 @@
         strokeWeight(4);
         line(0, 0, 0, height);
         line(width, 0, width, height);
-        line(0, 0, width, 0);
+        line(0, 1, width, 0);
         line(0, height, width, height);
 
         // Рисуем ворота
@@ -275,6 +286,11 @@
         strokeWeight(6);
         line(width * 0.25, 0, width * 0.75, 0);
         line(width * 0.25, height, width * 0.75, height);
+
+        // Рисуем центральную линию
+        stroke(255, 0, 255, 100);
+        strokeWeight(2);
+        line(0, height / 2, width, height / 2);
 
         // Рисуем ракетки
         noStroke();
