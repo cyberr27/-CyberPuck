@@ -54,7 +54,6 @@ let gameState = {
 };
 
 wss.on("connection", (ws) => {
-  // Присваиваем игроку ID
   let playerId = players.length + 1;
   if (playerId > 2) {
     ws.send(JSON.stringify({ type: "error", message: "Игра уже заполнена!" }));
@@ -63,17 +62,15 @@ wss.on("connection", (ws) => {
   }
 
   players.push(ws);
-  ws.playerId = playerId; // Сохраняем ID в объекте WebSocket
+  ws.playerId = playerId;
   gameState.lastPing.set(ws, Date.now());
 
-  // Отправляем инициализацию игроку
   ws.send(JSON.stringify({ type: "init", playerId }));
 
   console.log(
     `Игрок ${playerId} подключился. Всего игроков: ${players.length}`
   );
 
-  // Если подключилось 2 игрока, начинаем игру
   if (players.length === 2) {
     startGame();
   }
@@ -252,7 +249,7 @@ function updateGame() {
   }
 
   let hit = false;
-  let ballRadius = 0.01; // Увеличенный радиус мяча
+  let ballRadius = 0.01;
   let paddleWidth = 0.0667;
   let paddleHeight = 0.0333;
 
@@ -268,21 +265,24 @@ function updateGame() {
     let hitPos = collision1.hitPos;
     if (gameState.ball.dx === 0 && gameState.ball.dy === 0) {
       if (gameState.servingPlayer === 1) {
-        gameState.ball.dx = 0.004 * hitPos;
-        gameState.ball.dy = 0.008;
+        gameState.ball.dx = 0.004 * hitPos + gameState.paddle1.vx * 0.5;
+        gameState.ball.dy = 0.008 * gameState.paddle1.charge;
         gameState.lastHitPlayer = 1;
         gameState.serveTimer = 7;
         gameState.hitTimer = 7;
       }
     } else if (gameState.ball.dy > 0) {
-      gameState.ball.dx = 0.005 * hitPos + gameState.paddle1.vx * 0.5;
-      gameState.ball.dy = -Math.abs(gameState.ball.dy) * 1.1;
+      gameState.ball.dx =
+        0.005 * hitPos +
+        gameState.paddle1.vx * 0.5 +
+        (Math.random() - 0.5) * 0.002;
+      gameState.ball.dy = -0.008 * gameState.paddle1.charge;
       gameState.ball.y = gameState.paddle1.y + paddleHeight + ballRadius;
       gameState.lastHitPlayer = 1;
       gameState.hitTimer = 7;
       gameState.paddle1.charge = Math.min(gameState.paddle1.charge + 0.1, 2);
+      hit = true;
     }
-    hit = true;
   }
 
   // Проверка столкновения с ракеткой игрока 2
@@ -297,21 +297,24 @@ function updateGame() {
     let hitPos = collision2.hitPos;
     if (gameState.ball.dx === 0 && gameState.ball.dy === 0) {
       if (gameState.servingPlayer === 2) {
-        gameState.ball.dx = 0.004 * hitPos;
-        gameState.ball.dy = -0.008;
+        gameState.ball.dx = 0.004 * hitPos + gameState.paddle2.vx * 0.5;
+        gameState.ball.dy = -0.008 * gameState.paddle2.charge;
         gameState.lastHitPlayer = 2;
         gameState.serveTimer = 7;
         gameState.hitTimer = 7;
       }
     } else if (gameState.ball.dy < 0) {
-      gameState.ball.dx = 0.005 * hitPos + gameState.paddle2.vx * 0.5;
-      gameState.ball.dy = Math.abs(gameState.ball.dy) * 1.1;
+      gameState.ball.dx =
+        0.005 * hitPos +
+        gameState.paddle2.vx * 0.5 +
+        (Math.random() - 0.5) * 0.002;
+      gameState.ball.dy = 0.008 * gameState.paddle2.charge;
       gameState.ball.y = gameState.paddle2.y - ballRadius;
       gameState.lastHitPlayer = 2;
       gameState.hitTimer = 7;
       gameState.paddle2.charge = Math.min(gameState.paddle2.charge + 0.1, 2);
+      hit = true;
     }
-    hit = true;
   }
 
   // Проверка голов
