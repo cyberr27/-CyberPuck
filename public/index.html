@@ -2,7 +2,7 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initialólogo
     <title>CyberPuck</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/addons/p5.sound.min.js"></script>
@@ -87,8 +87,8 @@
     <script>
       let ws;
       let playerId = null;
-      let paddle1 = { x: 0.5, y: 0.0667, score: 0, vx: 0, charge: 1 };
-      let paddle2 = { x: 0.5, y: 0.9333, score: 0, vx: 0, charge: 1 };
+      let paddle1 = { x: 0.5, y: 0.0667, score: 0, vx: 0, vy: 0, charge: 1 };
+      let paddle2 = { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0, charge: 1 };
       let ball = { x: 0.5, y: 0.5, dx: 0, dy: 0 };
       let gameState = "waiting";
       let servingPlayer = 1;
@@ -170,6 +170,7 @@
               y: data.paddle1.y,
               score: data.paddle1.score,
               vx: data.paddle1.vx,
+              vy: data.paddle1.vy,
               charge: data.paddle1.charge || 1,
             };
             paddle2 = {
@@ -177,6 +178,7 @@
               y: data.paddle2.y,
               score: data.paddle2.score,
               vx: data.paddle2.vx,
+              vy: data.paddle2.vy,
               charge: data.paddle2.charge || 1,
             };
             ball = {
@@ -264,7 +266,6 @@
         background(13, 13, 26, 200);
         drawCyberBackground();
 
-        // Пульсирующие неоновые линии
         neonPulse = (neonPulse + 0.05) % TWO_PI;
         let neonAlpha = map(sin(neonPulse), -1, 1, 100, 255);
         stroke(255, 0, 122, neonAlpha);
@@ -274,7 +275,6 @@
         line(0, 0, width, 0);
         line(0, height, width, height);
 
-        // Рисуем стол
         stroke(0, 255, 204, 50);
         strokeWeight(1);
         for (let x = 0; x < width; x += width / 30) {
@@ -284,21 +284,20 @@
           line(0, y, width, y);
         }
 
-        // Рисуем ворота
         stroke(255, 0, 255, 150);
         strokeWeight(6);
         line(width * 0.25, 0, width * 0.75, 0);
         line(width * 0.25, height, width * 0.75, height);
 
-        // Рисуем центральную линию
         stroke(255, 0, 255, 100);
         strokeWeight(2);
         line(0, height / 2, width, height / 2);
 
-        // Рисуем ракетки
         noStroke();
-        let paddle1Glow = 20 + Math.abs(paddle1.vx) * 1000;
-        let paddle2Glow = 20 + Math.abs(paddle2.vx) * 1000;
+        let paddle1Glow =
+          20 + (Math.abs(paddle1.vx) + Math.abs(paddle1.vy)) * 500;
+        let paddle2Glow =
+          20 + (Math.abs(paddle2.vx) + Math.abs(paddle2.vy)) * 500;
         drawingContext.shadowBlur = paddle1Glow;
         drawingContext.shadowColor = `rgba(0, 255, 204, 0.9)`;
         fill(0, 255, 204);
@@ -324,18 +323,17 @@
         );
         drawingContext.shadowBlur = 0;
 
-        // Рисуем индикатор энергии
         let energy1 = map(
-          Math.abs(paddle1.vx),
+          Math.sqrt(paddle1.vx * paddle1.vx + paddle1.vy * paddle1.vy),
           0,
-          0.0078,
+          0.0111,
           0,
           paddleWidth * width
         );
         let energy2 = map(
-          Math.abs(paddle2.vx),
+          Math.sqrt(paddle2.vx * paddle2.vx + paddle2.vy * paddle2.vy),
           0,
-          0.0078,
+          0.0111,
           0,
           paddleWidth * width
         );
@@ -348,21 +346,19 @@
           5
         );
 
-        // Рисуем след мяча
         for (let i = ballTrail.length - 1; i >= 0; i--) {
           let trail = ballTrail[i];
-          let alpha = map(i, 0, ballTrail.length - 1, 20, 100); // Меньшая прозрачность
+          let alpha = map(i, 0, ballTrail.length - 1, 20, 100);
           fill(255, 0, 122, alpha);
           noStroke();
-          let trailSize = width * 0.01; // Уменьшенный размер
+          let trailSize = width * 0.01;
           ellipse(trail.x * width, trail.y * height, trailSize, trailSize);
-          trail.alpha -= 5; // Быстрее исчезает
+          trail.alpha -= 5;
           if (trail.alpha <= 0) {
             ballTrail.splice(i, 1);
           }
         }
 
-        // Рисуем мяч
         let ballSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
         drawingContext.shadowBlur = 20 + ballSpeed * 3000;
         drawingContext.shadowColor = `rgba(255, 0, 122, 1)`;
@@ -371,7 +367,7 @@
         ellipse(
           constrain(ball.x * width, width * 0.01, width * (1 - 0.01)),
           constrain(ball.y * height, height * 0.01, height * (1 - 0.01)),
-          width * 0.02, // Увеличиваем с 0.0167 до 0.02
+          width * 0.02,
           width * 0.02
         );
         drawingContext.shadowBlur = 0;
@@ -472,7 +468,6 @@
         if (gameState === "playing") {
           ballTrail.push({ x: ball.x, y: ball.y, alpha: 100 });
           if (ballTrail.length > 10) {
-            // Уменьшаем с 20 до 10
             ballTrail.shift();
           }
         }

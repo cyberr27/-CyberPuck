@@ -24,7 +24,6 @@ function checkPaddleCollision(
   const paddleX = paddle.x;
   const paddleY = paddle.y;
 
-  // Проверяем, находится ли мяч в области ракетки
   if (
     ballX + ballRadius >= paddleX &&
     ballX - ballRadius <= paddleX + paddleWidth &&
@@ -39,8 +38,8 @@ function checkPaddleCollision(
 
 let players = [];
 let gameState = {
-  paddle1: { x: 0.5, y: 0.0667, score: 0, vx: 0, charge: 1 },
-  paddle2: { x: 0.5, y: 0.9333, score: 0, vx: 0, charge: 1 },
+  paddle1: { x: 0.5, y: 0.0667, score: 0, vx: 0, vy: 0, charge: 1 },
+  paddle2: { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0, charge: 1 },
   ball: { x: 0.5, y: 0.5, dx: 0, dy: 0, spin: 0 },
   status: "waiting",
   servingPlayer: 1,
@@ -91,6 +90,7 @@ wss.on("connection", (ws) => {
         paddle.x = constrain(paddle.x + paddle.vx, 0, 1 - 0.0667);
       }
       if (direction.y) {
+        paddle.vy = direction.y;
         paddle.y = constrain(
           paddle.y + direction.y,
           data.playerId === 1 ? 0 : 0.6,
@@ -128,8 +128,8 @@ wss.on("connection", (ws) => {
 
 function startGame() {
   gameState.status = "playing";
-  gameState.paddle1 = { x: 0.5, y: 0.0667, score: 0, vx: 0, charge: 1 };
-  gameState.paddle2 = { x: 0.5, y: 0.9333, score: 0, vx: 0, charge: 1 };
+  gameState.paddle1 = { x: 0.5, y: 0.0667, score: 0, vx: 0, vy: 0, charge: 1 };
+  gameState.paddle2 = { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0, charge: 1 };
   gameState.servingPlayer = Math.random() < 0.5 ? 1 : 2;
   gameState.serveTimer = 7;
   gameState.gameTimer = 180;
@@ -151,8 +151,8 @@ function startGame() {
 }
 
 function resetGame() {
-  gameState.paddle1 = { x: 0.5, y: 0.0667, score: 0, vx: 0, charge: 1 };
-  gameState.paddle2 = { x: 0.5, y: 0.9333, score: 0, vx: 0, charge: 1 };
+  gameState.paddle1 = { x: 0.5, y: 0.0667, score: 0, vx: 0, vy: 0, charge: 1 };
+  gameState.paddle2 = { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0, charge: 1 };
   gameState.ball = { x: 0.5, y: 0.5, dx: 0, dy: 0, spin: 0 };
   gameState.status = "waiting";
   gameState.servingPlayer = Math.random() < 0.5 ? 1 : 2;
@@ -206,6 +206,12 @@ function updateGame() {
       });
       return;
     }
+    // Следим за положением мяча во время подачи
+    gameState.ball.x =
+      gameState.servingPlayer === 1
+        ? gameState.paddle1.x + 0.0333
+        : gameState.paddle2.x + 0.0333;
+    gameState.ball.y = gameState.servingPlayer === 1 ? 0.1 : 0.9;
   } else {
     gameState.hitTimer -= 1 / 60;
     if (gameState.hitTimer <= 0) {
@@ -265,18 +271,22 @@ function updateGame() {
     let hitPos = collision1.hitPos;
     if (gameState.ball.dx === 0 && gameState.ball.dy === 0) {
       if (gameState.servingPlayer === 1) {
+        // Подача: мяч всегда летит к игроку 2
         gameState.ball.dx = 0.004 * hitPos + gameState.paddle1.vx * 0.5;
-        gameState.ball.dy = 0.008 * gameState.paddle1.charge;
+        gameState.ball.dy = 0.008 * gameState.paddle1.charge; // Положительное значение для движения вниз
+        gameState.ball.y = gameState.paddle1.y + paddleHeight + ballRadius;
         gameState.lastHitPlayer = 1;
         gameState.serveTimer = 7;
         gameState.hitTimer = 7;
+        hit = true;
       }
     } else if (gameState.ball.dy > 0) {
+      // Обычный удар: мяч отражается вниз
       gameState.ball.dx =
         0.005 * hitPos +
         gameState.paddle1.vx * 0.5 +
         (Math.random() - 0.5) * 0.002;
-      gameState.ball.dy = -0.008 * gameState.paddle1.charge;
+      gameState.ball.dy = -Math.abs(0.008 * gameState.paddle1.charge); // Отрицательное значение для движения вверх
       gameState.ball.y = gameState.paddle1.y + paddleHeight + ballRadius;
       gameState.lastHitPlayer = 1;
       gameState.hitTimer = 7;
@@ -297,18 +307,22 @@ function updateGame() {
     let hitPos = collision2.hitPos;
     if (gameState.ball.dx === 0 && gameState.ball.dy === 0) {
       if (gameState.servingPlayer === 2) {
+        // Подача: мяч всегда летит к игроку 1
         gameState.ball.dx = 0.004 * hitPos + gameState.paddle2.vx * 0.5;
-        gameState.ball.dy = -0.008 * gameState.paddle2.charge;
+        gameState.ball.dy = -0.008 * gameState.paddle2.charge; // Отрицательное значение для движения вверх
+        gameState.ball.y = gameState.paddle2.y - ballRadius;
         gameState.lastHitPlayer = 2;
         gameState.serveTimer = 7;
         gameState.hitTimer = 7;
+        hit = true;
       }
     } else if (gameState.ball.dy < 0) {
+      // Обычный удар: мяч отражается вверх
       gameState.ball.dx =
         0.005 * hitPos +
         gameState.paddle2.vx * 0.5 +
         (Math.random() - 0.5) * 0.002;
-      gameState.ball.dy = 0.008 * gameState.paddle2.charge;
+      gameState.ball.dy = Math.abs(0.008 * gameState.paddle2.charge); // Положительное значение для движения вниз
       gameState.ball.y = gameState.paddle2.y - ballRadius;
       gameState.lastHitPlayer = 2;
       gameState.hitTimer = 7;
@@ -373,7 +387,7 @@ function broadcast(data) {
 setInterval(() => {
   const now = Date.now();
   players = players.filter((player) => {
-    if (now - gameState.lastPing.get(player) > 100000000) {
+    if (now - gameState.lastPing.get(player) > 10000) {
       player.close();
       return false;
     }
