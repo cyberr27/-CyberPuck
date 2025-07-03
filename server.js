@@ -59,8 +59,126 @@ let gameState = {
 };
 
 wss.on("connection", (ws) => {
-  // ... (код без изменений)
+  // Присваиваем игроку ID
+  let playerId = players.length + 1;
+  if (playerId > 2) {
+    ws.send(JSON.stringify({ type: "error", message: "Игра уже заполнена!" }));
+    ws.close();
+    return;
+  }
+
+  players.push(ws);
+  ws.playerId = playerId; // Сохраняем ID в объекте WebSocket
+  gameState.lastPing.set(ws, Date.now());
+
+  // Отправляем инициализацию игроку
+  ws.send(JSON.stringify({ type: "init", playerId }));
+
+  console.log(
+    `Игрок ${playerId} подключился. Всего игроков: ${players.length}`
+  );
+
+  // Если подключилось 2 игрока, начинаем игру
+  if (players.length === 2) {
+    startGame();
+  }
+
+  ws.on("message", (message) => {
+    const data = JSON.parse(message);
+    if (data.type === "move" && gameState.status === "playing") {
+      const direction = data.direction;
+      const paddle = ws.playerId === 1 ? gameState.paddle1 : gameState.paddle2;
+
+      if (direction.x) {
+        paddle.vx = direction.x;
+        paddle.x = constrain(paddle.x + paddle.vx, 0, 1 - 0.0667);
+      }
+      if (direction.y) {
+        paddle.y = constrain(
+          paddle.y + direction.y,
+          ws.playerId === 1 ? 0 : 0.6,
+          ws.playerId === 1 ? 0.4 : 1 - 0.0333
+        );
+      }
+    } else if (data.type === "newGame" && gameState.status === "gameOver") {
+      gameState.newGameRequests.add(ws.playerId);
+      if (gameState.newGameRequests.size === 2) {
+        resetGame();
+        startGame();
+      }
+    } else if (data.type === "ping") {
+      gameState.lastPing.set(ws, Date.now());
+    }
+  });
+
+  ws.on("close", () => {
+    players = players.filter((p) => p !== ws);
+    gameState.lastPing.delete(ws);
+    console.log(
+      `Игрок ${ws.playerId} отключился. Всего игроков: ${players.length}`
+    );
+    if (gameState.status === "playing") {
+      gameState.status = "waiting";
+      gameState.newGameRequests.clear();
+      resetBall(true);
+      broadcast({
+        type: "error",
+        message: "Игрок отключился. Ожидание нового игрока...",
+      });
+    }
+  });
 });
+
+function startGame() {
+  gameState.status = "playing";
+  gameState.paddle1 = { x: 0.5, y: 0.0667, score: 0, vx: 0, charge: 1 };
+  gameState.paddle2 = { x: 0.5, y: 0.9333, score: 0, vx: 0, charge: 1 };
+  gameState.servingPlayer = Math.random() < 0.5 ? 1 : 2;
+  gameState.serveTimer = 7;
+  gameState.gameTimer = 180;
+  gameState.lastHitPlayer = null;
+  gameState.hitTimer = 7;
+  resetBall(true);
+
+  broadcast({
+    type: "start",
+    paddle1: gameState.paddle1,
+    paddle2: gameState.paddle2,
+    ball: gameState.ball,
+    servingPlayer: gameState.servingPlayer,
+    serveTimer: gameState.serveTimer,
+    gameTimer: gameState.gameTimer,
+  });
+
+  console.log("Игра началась!");
+}
+
+function resetGame() {
+  gameState.paddle1 = { x: 0.5, y: 0.0667, score: 0, vx: 0, charge: 1 };
+  gameState.paddle2 = { x: 0.5, y: 0.9333, score: 0, vx: 0, charge: 1 };
+  gameState.ball = { x: 0.5, y: 0.5, dx: 0, dy: 0, spin: 0 };
+  gameState.status = "waiting";
+  gameState.servingPlayer = Math.random() < 0.5 ? 1 : 2;
+  gameState.serveTimer = 7;
+  gameState.gameTimer = 180;
+  gameState.lastGoal = null;
+  gameState.newGameRequests.clear();
+  gameState.lastHitPlayer = null;
+  gameState.hitTimer = 7;
+}
+
+function resetBall(isNewGame) {
+  gameState.ball.x =
+    gameState.servingPlayer === 1
+      ? gameState.paddle1.x + 0.0333
+      : gameState.paddle2.x + 0.0333;
+  gameState.ball.y = gameState.servingPlayer === 1 ? 0.1 : 0.9;
+  gameState.ball.dx = 0;
+  gameState.ball.dy = 0;
+  gameState.ball.spin = 0;
+  gameState.serveTimer = 7;
+  gameState.hitTimer = 7;
+}
 
 function updateGame() {
   if (gameState.status !== "playing") return;
@@ -159,7 +277,7 @@ function updateGame() {
     } else if (gameState.ball.dy > 0) {
       gameState.ball.dx = 0.004 * hitPos + gameState.paddle1.vx * 0.4;
       gameState.ball.dy = -Math.abs(gameState.ball.dy) * charge;
-      gameState.ball.y = gameState.paddle1.y - ballRadius;
+      gameState.ball.y = gameState.paddle1.y + paddleHeight + ballRadius;
       gameState.lastHitPlayer = 1;
       gameState.hitTimer = 7;
       gameState.paddle1.charge = Math.min(gameState.paddle1.charge + 0.1, 2);
@@ -188,7 +306,7 @@ function updateGame() {
     } else if (gameState.ball.dy < 0) {
       gameState.ball.dx = 0.004 * hitPos + gameState.paddle2.vx * 0.4;
       gameState.ball.dy = Math.abs(gameState.ball.dy) * charge;
-      gameState.ball.y = gameState.paddle2.y + ballRadius;
+      gameState.ball.y = gameState.paddle2.y - ballRadius;
       gameState.lastHitPlayer = 2;
       gameState.hitTimer = 7;
       gameState.paddle2.charge = Math.min(gameState.paddle2.charge + 0.1, 2);
@@ -239,19 +357,6 @@ function updateGame() {
   });
 }
 
-function resetBall(isNewGame) {
-  gameState.ball.x =
-    gameState.servingPlayer === 1
-      ? gameState.paddle1.x + 0.0333
-      : gameState.paddle2.x + 0.0333;
-  gameState.ball.y = gameState.servingPlayer === 1 ? 0.1 : 0.9;
-  gameState.ball.dx = 0;
-  gameState.ball.dy = 0;
-  gameState.ball.spin = 0;
-  gameState.serveTimer = 7;
-  gameState.hitTimer = 7;
-}
-
 function broadcast(data) {
   players.forEach((player) => {
     if (player.readyState === WebSocket.OPEN) {
@@ -263,7 +368,7 @@ function broadcast(data) {
 setInterval(() => {
   const now = Date.now();
   players = players.filter((player) => {
-    if (now - player.lastPing > 100000000) {
+    if (now - gameState.lastPing.get(player) > 100000000) {
       player.close();
       return false;
     }
@@ -272,6 +377,7 @@ setInterval(() => {
   if (players.length < 2 && gameState.status === "playing") {
     gameState.status = "waiting";
     gameState.newGameRequests.clear();
+    resetBall(true);
     broadcast({
       type: "error",
       message: "Игрок отключился. Ожидание нового игрока...",
