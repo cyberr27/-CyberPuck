@@ -31,9 +31,257 @@ function checkPaddleCollision(
     ballY - ballRadius <= paddleY + paddleHeight
   ) {
     const hitPos = (ballX - paddleX - paddleWidth / 2) / (paddleWidth / 2);
-    return { hit: true, hitPos };
+    const relativeVelocityX = ball.dx - paddle.vx;
+    const relativeVelocityY = ball.dy - paddle.vy;
+    const speed = Math.sqrt(relativeVelocityX ** 2 + relativeVelocityY ** 2);
+    return { hit: true, hitPos, speed };
   }
-  return { hit: false, hitPos: 0 };
+  return { hit: false, hitPos: 0, speed: 0 };
+}
+
+function updateGame() {
+  if (gameState.status !== "playing") return;
+
+  if (gameState.gameTimer > 0) {
+    gameState.gameTimer -= 1 / 60;
+  } else {
+    gameState.status = "gameOver";
+    const winner = gameState.paddle1.score > gameState.paddle2.score ? 1 : 2;
+    broadcast({ type: "gameOver", winner });
+    return;
+  }
+
+  if (gameState.ball.dx === 0 && gameState.ball.dy === 0) {
+    gameState.serveTimer -= 1 / 60;
+    if (gameState.serveTimer <= 0) {
+      gameState.servingPlayer = gameState.servingPlayer === 1 ? 2 : 1;
+      resetBall(false);
+      broadcast({
+        type: "update",
+        paddle1: gameState.paddle1,
+        paddle2: gameState.paddle2,
+        ball: gameState.ball,
+        servingPlayer: gameState.servingPlayer,
+        serveTimer: gameState.serveTimer,
+        gameTimer: gameState.gameTimer,
+        foul: true,
+      });
+      return;
+    }
+    gameState.ball.x =
+      gameState.servingPlayer === 1
+        ? gameState.paddle1.x + 0.0333
+        : gameState.paddle2.x + 0.0333;
+    gameState.ball.y = gameState.servingPlayer === 1 ? 0.1 : 0.9;
+  } else {
+    gameState.hitTimer -= 1 / 60;
+    if (gameState.hitTimer <= 0) {
+      gameState.servingPlayer = gameState.lastHitPlayer === 1 ? 2 : 1;
+      resetBall(false);
+      broadcast({
+        type: "update",
+        paddle1: gameState.paddle1,
+        paddle2: gameState.paddle2,
+        ball: gameState.ball,
+        servingPlayer: gameState.servingPlayer,
+        serveTimer: gameState.serveTimer,
+        gameTimer: gameState.gameTimer,
+        foul: true,
+      });
+      return;
+    }
+  }
+
+  gameState.ball.x += gameState.ball.dx;
+  gameState.ball.y += gameState.ball.dy;
+
+  let wallHit = false;
+  let ballRadius = 0.01;
+  let paddleWidth = 0.0667;
+  let paddleHeight = 0.0333;
+
+  // Отскоки от стен с учётом закруглённых углов
+  const cornerRadius = 0.05; // Радиус закругления углов поля
+  const checkCornerCollision = (x, y, dx, dy) => {
+    const corners = [
+      { x: cornerRadius, y: cornerRadius },
+      { x: cornerRadius, y: 1 - cornerRadius },
+      { x: 1 - cornerRadius, y: cornerRadius },
+      { x: 1 - cornerRadius, y: 1 - cornerRadius },
+    ];
+    for (let corner of corners) {
+      const dist = Math.sqrt((x - corner.x) ** 2 + (y - corner.y) ** 2);
+      if (dist <= cornerRadius + ballRadius) {
+        const angleToCorner = Math.atan2(y - corner.y, x - corner.x);
+        const speed = Math.sqrt(dx ** 2 + dy ** 2);
+        dx = -Math.cos(angleToCorner) * speed;
+        dy = -Math.sin(angleToCorner) * speed;
+        return { hit: true, dx, dy };
+      }
+    }
+    return { hit: false, dx, dy };
+  };
+
+  const cornerCollision = checkCornerCollision(
+    gameState.ball.x,
+    gameState.ball.y,
+    gameState.ball.dx,
+    gameState.ball.dy
+  );
+  if (cornerCollision.hit) {
+    gameState.ball.dx = cornerCollision.dx;
+    gameState.ball.dy = cornerCollision.dy;
+    gameState.ball.x = constrain(gameState.ball.x, 0.01, 1 - 0.01);
+    gameState.ball.y = constrain(gameState.ball.y, 0.01, 1 - 0.01);
+    wallHit = true;
+  } else if (gameState.ball.x <= 0.01 || gameState.ball.x >= 1 - 0.01) {
+    gameState.ball.dx *= -1;
+    gameState.ball.x = constrain(gameState.ball.x, 0.01, 1 - 0.01);
+    wallHit = true;
+  } else if (gameState.ball.y <= 0.01 || gameState.ball.y >= 1 - 0.01) {
+    if (gameState.ball.x >= 0.25 && gameState.ball.x <= 0.75) {
+      // Гол
+      if (gameState.ball.y < 0.01) {
+        gameState.paddle2.score += 1;
+        gameState.servingPlayer = 1;
+        resetBall(false);
+        broadcast({
+          type: "update",
+          paddle1: gameState.paddle1,
+          paddle2: gameState.paddle2,
+          ball: gameState.ball,
+          servingPlayer: gameState.servingPlayer,
+          serveTimer: gameState.serveTimer,
+          gameTimer: gameState.gameTimer,
+          goal: 2,
+        });
+      } else if (gameState.ball.y > 1 - 0.01) {
+        gameState.paddle1.score += 1;
+        gameState.servingPlayer = 2;
+        resetBall(false);
+        broadcast({
+          type: "update",
+          paddle1: gameState.paddle1,
+          paddle2: gameState.paddle2,
+          ball: gameState.ball,
+          servingPlayer: gameState.servingPlayer,
+          serveTimer: gameState.serveTimer,
+          gameTimer: gameState.gameTimer,
+          goal: 1,
+        });
+      }
+      if (gameState.paddle1.score >= 7) {
+        gameState.status = "gameOver";
+        broadcast({ type: "gameOver", winner: 1 });
+      } else if (gameState.paddle2.score >= 7) {
+        gameState.status = "gameOver";
+        broadcast({ type: "gameOver", winner: 2 });
+      }
+      return;
+    } else {
+      gameState.ball.dy *= -1;
+      gameState.ball.y = constrain(gameState.ball.y, 0.01, 1 - 0.01);
+      wallHit = true;
+    }
+  }
+
+  let hit = false;
+  let collision1 = checkPaddleCollision(
+    gameState.ball,
+    gameState.paddle1,
+    paddleWidth,
+    paddleHeight,
+    ballRadius
+  );
+  if (collision1.hit) {
+    let hitPos = collision1.hitPos;
+    if (gameState.ball.dx === 0 && gameState.ball.dy === 0) {
+      if (gameState.servingPlayer === 1) {
+        // Подача
+        const speed = 0.008 * gameState.paddle1.charge;
+        gameState.ball.dx = hitPos * 0.004 + gameState.paddle1.vx * 0.5;
+        gameState.ball.dy = speed;
+        gameState.ball.y = gameState.paddle1.y + paddleHeight + ballRadius;
+        gameState.lastHitPlayer = 1;
+        gameState.serveTimer = 3; // Ускоряем подачу
+        gameState.hitTimer = 7;
+        hit = true;
+      }
+    } else if (gameState.ball.dy > 0) {
+      // Обычный удар
+      const speed = collision1.speed * 0.8 + 0.008 * gameState.paddle1.charge;
+      gameState.ball.dx = hitPos * 0.004 + gameState.paddle1.vx * 0.5;
+      gameState.ball.dy = speed;
+      gameState.ball.y = gameState.paddle1.y + paddleHeight + ballRadius;
+      gameState.lastHitPlayer = 1;
+      gameState.hitTimer = 7;
+      gameState.paddle1.charge = Math.min(gameState.paddle1.charge + 0.1, 2);
+      hit = true;
+    }
+  }
+
+  let collision2 = checkPaddleCollision(
+    gameState.ball,
+    gameState.paddle2,
+    paddleWidth,
+    paddleHeight,
+    ballRadius
+  );
+  if (collision2.hit) {
+    let hitPos = collision2.hitPos;
+    if (gameState.ball.dx === 0 && gameState.ball.dy === 0) {
+      if (gameState.servingPlayer === 2) {
+        // Подача
+        const speed = 0.008 * gameState.paddle2.charge;
+        gameState.ball.dx = hitPos * 0.004 + gameState.paddle2.vx * 0.5;
+        gameState.ball.dy = -speed;
+        gameState.ball.y = gameState.paddle2.y - ballRadius;
+        gameState.lastHitPlayer = 2;
+        gameState.serveTimer = 3; // Ускоряем подачу
+        gameState.hitTimer = 7;
+        hit = true;
+      }
+    } else if (gameState.ball.dy < 0) {
+      // Обычный удар
+      const speed = collision2.speed * 0.8 + 0.008 * gameState.paddle2.charge;
+      gameState.ball.dx = hitPos * 0.004 + gameState.paddle2.vx * 0.5;
+      gameState.ball.dy = -speed;
+      gameState.ball.y = gameState.paddle2.y - ballRadius;
+      gameState.lastHitPlayer = 2;
+      gameState.hitTimer = 7;
+      gameState.paddle2.charge = Math.min(gameState.paddle2.charge + 0.1, 2);
+      hit = true;
+    }
+  }
+
+  // Нормализация скорости шайбы
+  if (hit || wallHit) {
+    const currentSpeed = Math.sqrt(
+      gameState.ball.dx ** 2 + gameState.ball.dy ** 2
+    );
+    if (currentSpeed > 0) {
+      const maxSpeed = 0.015; // Максимальная скорость шайбы
+      const normalized = normalizeSpeed(
+        gameState.ball.dx,
+        gameState.ball.dy,
+        Math.min(currentSpeed, maxSpeed)
+      );
+      gameState.ball.dx = normalized.dx;
+      gameState.ball.dy = normalized.dy;
+    }
+  }
+
+  broadcast({
+    type: "update",
+    paddle1: gameState.paddle1,
+    paddle2: gameState.paddle2,
+    ball: gameState.ball,
+    servingPlayer: gameState.servingPlayer,
+    serveTimer: gameState.serveTimer,
+    gameTimer: gameState.gameTimer,
+    hit,
+    wallHit,
+  });
 }
 
 let players = [];
@@ -173,7 +421,7 @@ function resetBall(isNewGame) {
   gameState.ball.dx = 0;
   gameState.ball.dy = 0;
   gameState.ball.spin = 0;
-  gameState.serveTimer = 7;
+  gameState.serveTimer = 3; // Ускоряем подачу
   gameState.hitTimer = 7;
 }
 

@@ -268,13 +268,14 @@
 
         neonPulse = (neonPulse + 0.05) % TWO_PI;
         let neonAlpha = map(sin(neonPulse), -1, 1, 100, 255);
+
+        // Рисуем поле с закруглёнными углами
         stroke(255, 0, 122, neonAlpha);
         strokeWeight(4);
-        line(0, 0, 0, height);
-        line(width, 0, width, height);
-        line(0, 0, width, 0);
-        line(0, height, width, height);
+        noFill();
+        rect(0, 0, width, height, 20); // Радиус углов 20px
 
+        // Остальные линии (середина, ворота)
         stroke(0, 255, 204, 50);
         strokeWeight(1);
         for (let x = 0; x < width; x += width / 30) {
@@ -364,9 +365,11 @@
         drawingContext.shadowColor = `rgba(255, 0, 122, 1)`;
         fill(255, 0, 122);
         noStroke();
+        let smoothedBallX = lerp(ball.x * width, ball.x * width, 0.9);
+        let smoothedBallY = lerp(ball.y * height, ball.y * height, 0.9);
         ellipse(
-          constrain(ball.x * width, width * 0.01, width * (1 - 0.01)),
-          constrain(ball.y * height, height * 0.01, height * (1 - 0.01)),
+          constrain(smoothedBallX, width * 0.01, width * (1 - 0.01)),
+          constrain(smoothedBallY, height * 0.01, height * (1 - 0.01)),
           width * 0.02,
           width * 0.02
         );
@@ -418,7 +421,61 @@
         console.log(`Canvas resized to ${newWidth}x${newHeight}`);
       }
 
+      function mouseMoved() {
+        if (gameState !== "playing" || !playerId) return;
+        let targetX = mouseX / width;
+        let targetY = mouseY / height;
+        let paddle = playerId === 1 ? paddle1 : paddle2;
+
+        // Ограничение по половине поля
+        targetY = constrain(
+          targetY,
+          playerId === 1 ? 0 : 0.6,
+          playerId === 1 ? 0.4 : 1 - 0.0333
+        );
+        targetX = constrain(targetX, 0, 1 - paddleWidth);
+
+        // Плавное движение с инерцией
+        let lerpFactor = 0.2; // Скорость следования за курсором
+        let move = {
+          x: (targetX - paddle.x) * lerpFactor,
+          y: (targetY - paddle.y) * lerpFactor,
+        };
+
+        if (Math.abs(move.x) > 0.0001 || Math.abs(move.y) > 0.0001) {
+          ws.send(JSON.stringify({ type: "move", direction: move, playerId }));
+        }
+      }
+
+      function touchMoved() {
+        if (gameState !== "playing" || !playerId) return;
+        let touchX = mouseX / width;
+        let touchY = mouseY / height;
+        let paddle = playerId === 1 ? paddle1 : paddle2;
+
+        // Ограничение по половине поля
+        touchY = constrain(
+          touchY,
+          playerId === 1 ? 0 : 0.6,
+          playerId === 1 ? 0.4 : 1 - 0.0333
+        );
+        touchX = constrain(touchX, 0, 1 - paddleWidth);
+
+        // Плавное движение с инерцией
+        let lerpFactor = 0.2;
+        let move = {
+          x: (touchX - paddle.x) * lerpFactor,
+          y: (touchY - paddle.y) * lerpFactor,
+        };
+
+        if (Math.abs(move.x) > 0.0001 || Math.abs(move.y) > 0.0001) {
+          ws.send(JSON.stringify({ type: "move", direction: move, playerId }));
+        }
+        return false;
+      }
+
       function keyPressed() {
+        // Оставляем управление клавишами как резервное
         if (gameState !== "playing") return;
         let move = {};
         if (keyCode === LEFT_ARROW || key === "a" || key === "A") {
@@ -436,27 +493,6 @@
         if (move.x || move.y) {
           ws.send(JSON.stringify({ type: "move", direction: move, playerId }));
         }
-      }
-
-      function touchMoved() {
-        if (gameState !== "playing") return;
-        let touchX = mouseX / width;
-        let touchY = mouseY / height;
-        let move = {};
-        if (lastTouchX !== null) {
-          let deltaX = touchX - lastTouchX;
-          let deltaY = touchY - lastTouchY;
-          move.x = constrain(deltaX * 10, -0.0078, 0.0078);
-          move.y = constrain(deltaY * 10, -0.0111, 0.0111);
-          if (move.x || move.y) {
-            ws.send(
-              JSON.stringify({ type: "move", direction: move, playerId })
-            );
-          }
-        }
-        lastTouchX = touchX;
-        lastTouchY = touchY;
-        return false;
       }
 
       function touchEnded() {
