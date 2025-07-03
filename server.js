@@ -24,20 +24,15 @@ function checkPaddleCollision(
   const paddleX = paddle.x;
   const paddleY = paddle.y;
 
-  for (let i = 0; i < 8; i++) {
-    const degree = i * 45 * (Math.PI / 180);
-    const x = ballRadius * Math.cos(degree) + ballX;
-    const y = ballRadius * Math.sin(degree) + ballY;
-
-    if (
-      x >= paddleX &&
-      x <= paddleX + paddleWidth &&
-      y >= paddleY &&
-      y <= paddleY + paddleHeight
-    ) {
-      const hitPos = (ballX - paddleX - paddleWidth / 2) / (paddleWidth / 2);
-      return { hit: true, hitPos };
-    }
+  // Проверяем, находится ли мяч в области ракетки
+  if (
+    ballX + ballRadius >= paddleX &&
+    ballX - ballRadius <= paddleX + paddleWidth &&
+    ballY + ballRadius >= paddleY &&
+    ballY - ballRadius <= paddleY + paddleHeight
+  ) {
+    const hitPos = (ballX - paddleX - paddleWidth / 2) / (paddleWidth / 2);
+    return { hit: true, hitPos };
   }
   return { hit: false, hitPos: 0 };
 }
@@ -85,9 +80,14 @@ wss.on("connection", (ws) => {
 
   ws.on("message", (message) => {
     const data = JSON.parse(message);
-    if (data.type === "move" && gameState.status === "playing") {
+    if (
+      data.type === "move" &&
+      gameState.status === "playing" &&
+      data.playerId
+    ) {
       const direction = data.direction;
-      const paddle = ws.playerId === 1 ? gameState.paddle1 : gameState.paddle2;
+      const paddle =
+        data.playerId === 1 ? gameState.paddle1 : gameState.paddle2;
 
       if (direction.x) {
         paddle.vx = direction.x;
@@ -96,8 +96,8 @@ wss.on("connection", (ws) => {
       if (direction.y) {
         paddle.y = constrain(
           paddle.y + direction.y,
-          ws.playerId === 1 ? 0 : 0.6,
-          ws.playerId === 1 ? 0.4 : 1 - 0.0333
+          data.playerId === 1 ? 0 : 0.6,
+          data.playerId === 1 ? 0.4 : 1 - 0.0333
         );
       }
     } else if (data.type === "newGame" && gameState.status === "gameOver") {
@@ -214,7 +214,6 @@ function updateGame() {
     if (gameState.hitTimer <= 0) {
       gameState.servingPlayer = gameState.lastHitPlayer === 1 ? 2 : 1;
       resetBall(false);
-      gameState.hitTimer = 7;
       broadcast({
         type: "update",
         paddle1: gameState.paddle1,
@@ -231,9 +230,10 @@ function updateGame() {
 
   gameState.ball.x += gameState.ball.dx;
   gameState.ball.y += gameState.ball.dy;
-  gameState.ball.dx *= 0.995;
+  gameState.ball.dx *= 0.995; // Трение
   gameState.ball.dy *= 0.995;
 
+  // Ограничение максимальной скорости
   let speed = Math.sqrt(
     gameState.ball.dx * gameState.ball.dx +
       gameState.ball.dy * gameState.ball.dy
@@ -245,17 +245,18 @@ function updateGame() {
   }
 
   let wallHit = false;
-  if (gameState.ball.x <= 0.0167 || gameState.ball.x >= 1 - 0.0167) {
+  if (gameState.ball.x <= 0.01 || gameState.ball.x >= 1 - 0.01) {
     gameState.ball.dx *= -1;
-    gameState.ball.x = constrain(gameState.ball.x, 0.0167, 1 - 0.0167);
+    gameState.ball.x = constrain(gameState.ball.x, 0.01, 1 - 0.01);
     wallHit = true;
   }
 
   let hit = false;
-  let ballRadius = 0.0083;
+  let ballRadius = 0.01; // Увеличенный радиус мяча
   let paddleWidth = 0.0667;
   let paddleHeight = 0.0333;
 
+  // Проверка столкновения с ракеткой игрока 1
   let collision1 = checkPaddleCollision(
     gameState.ball,
     gameState.paddle1,
@@ -265,18 +266,17 @@ function updateGame() {
   );
   if (collision1.hit) {
     let hitPos = collision1.hitPos;
-    let charge = gameState.ball.dx === 0 && gameState.ball.dy === 0 ? 1.5 : 1.2;
     if (gameState.ball.dx === 0 && gameState.ball.dy === 0) {
       if (gameState.servingPlayer === 1) {
-        gameState.ball.dx = 0.003 * hitPos;
-        gameState.ball.dy = 0.008 * charge;
+        gameState.ball.dx = 0.004 * hitPos;
+        gameState.ball.dy = 0.008;
         gameState.lastHitPlayer = 1;
         gameState.serveTimer = 7;
         gameState.hitTimer = 7;
       }
     } else if (gameState.ball.dy > 0) {
-      gameState.ball.dx = 0.004 * hitPos + gameState.paddle1.vx * 0.4;
-      gameState.ball.dy = -Math.abs(gameState.ball.dy) * charge;
+      gameState.ball.dx = 0.005 * hitPos + gameState.paddle1.vx * 0.5;
+      gameState.ball.dy = -Math.abs(gameState.ball.dy) * 1.1;
       gameState.ball.y = gameState.paddle1.y + paddleHeight + ballRadius;
       gameState.lastHitPlayer = 1;
       gameState.hitTimer = 7;
@@ -285,6 +285,7 @@ function updateGame() {
     hit = true;
   }
 
+  // Проверка столкновения с ракеткой игрока 2
   let collision2 = checkPaddleCollision(
     gameState.ball,
     gameState.paddle2,
@@ -294,18 +295,17 @@ function updateGame() {
   );
   if (collision2.hit) {
     let hitPos = collision2.hitPos;
-    let charge = gameState.ball.dx === 0 && gameState.ball.dy === 0 ? 1.5 : 1.2;
     if (gameState.ball.dx === 0 && gameState.ball.dy === 0) {
       if (gameState.servingPlayer === 2) {
-        gameState.ball.dx = 0.003 * hitPos;
-        gameState.ball.dy = -0.008 * charge;
+        gameState.ball.dx = 0.004 * hitPos;
+        gameState.ball.dy = -0.008;
         gameState.lastHitPlayer = 2;
         gameState.serveTimer = 7;
         gameState.hitTimer = 7;
       }
     } else if (gameState.ball.dy < 0) {
-      gameState.ball.dx = 0.004 * hitPos + gameState.paddle2.vx * 0.4;
-      gameState.ball.dy = Math.abs(gameState.ball.dy) * charge;
+      gameState.ball.dx = 0.005 * hitPos + gameState.paddle2.vx * 0.5;
+      gameState.ball.dy = Math.abs(gameState.ball.dy) * 1.1;
       gameState.ball.y = gameState.paddle2.y - ballRadius;
       gameState.lastHitPlayer = 2;
       gameState.hitTimer = 7;
@@ -314,9 +314,10 @@ function updateGame() {
     hit = true;
   }
 
+  // Проверка голов
   let goal = null;
   if (
-    gameState.ball.y < 0.0083 &&
+    gameState.ball.y < 0.01 &&
     gameState.ball.x >= 0.25 &&
     gameState.ball.x <= 0.75
   ) {
@@ -325,7 +326,7 @@ function updateGame() {
     gameState.servingPlayer = 1;
     resetBall(false);
   } else if (
-    gameState.ball.y > 1 - 0.0083 &&
+    gameState.ball.y > 1 - 0.01 &&
     gameState.ball.x >= 0.25 &&
     gameState.ball.x <= 0.75
   ) {
@@ -335,6 +336,7 @@ function updateGame() {
     resetBall(false);
   }
 
+  // Проверка конца игры
   if (gameState.paddle1.score >= 7) {
     gameState.status = "gameOver";
     broadcast({ type: "gameOver", winner: 1 });

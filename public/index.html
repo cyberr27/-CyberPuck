@@ -190,12 +190,6 @@
             gameTimer = data.gameTimer;
             if (data.hit && hitSound && strongHitSound) {
               let hitIntensity = Math.abs(ball.dx) + Math.abs(ball.dy);
-              createParticles(
-                ball.x * width,
-                ball.y * height,
-                hitIntensity * 1.5,
-                color(255, 0, 122)
-              );
               tableShake = { x: random(-2, 2), y: random(-2, 2), duration: 10 };
               if (hitIntensity > 0.01) {
                 strongHitSound.play();
@@ -204,12 +198,6 @@
               }
             }
             if (data.wallHit && tableSound) {
-              createParticles(
-                ball.x * width,
-                ball.y * height,
-                10,
-                color(0, 255, 204)
-              );
               tableSound.play();
               tableShake = { x: random(-2, 2), y: random(-2, 2), duration: 10 };
             }
@@ -363,13 +351,12 @@
         // Рисуем след мяча
         for (let i = ballTrail.length - 1; i >= 0; i--) {
           let trail = ballTrail[i];
-          let alpha = map(i, 0, ballTrail.length - 1, 50, 255);
-          let hue = map(i, 0, ballTrail.length - 1, 0, 60);
-          fill(255, hue, 122, alpha);
+          let alpha = map(i, 0, ballTrail.length - 1, 20, 100); // Меньшая прозрачность
+          fill(255, 0, 122, alpha);
           noStroke();
-          let trailSize = width * 0.015 * (1 + i / ballTrail.length);
+          let trailSize = width * 0.01; // Уменьшенный размер
           ellipse(trail.x * width, trail.y * height, trailSize, trailSize);
-          trail.alpha -= 3;
+          trail.alpha -= 5; // Быстрее исчезает
           if (trail.alpha <= 0) {
             ballTrail.splice(i, 1);
           }
@@ -380,22 +367,15 @@
         drawingContext.shadowBlur = 20 + ballSpeed * 3000;
         drawingContext.shadowColor = `rgba(255, 0, 122, 1)`;
         fill(255, 0, 122);
+        noStroke();
         ellipse(
-          constrain(ball.x * width, width * 0.0083, width * (1 - 0.0083)),
-          constrain(ball.y * height, height * 0.0083, height * (1 - 0.0083)),
-          width * 0.0167,
-          width * 0.0167
+          constrain(ball.x * width, width * 0.01, width * (1 - 0.01)),
+          constrain(ball.y * height, height * 0.01, height * (1 - 0.01)),
+          width * 0.02, // Увеличиваем с 0.0167 до 0.02
+          width * 0.02
         );
         drawingContext.shadowBlur = 0;
 
-        // Рисуем частицы
-        for (let i = particles.length - 1; i >= 0; i--) {
-          particles[i].update();
-          particles[i].show();
-          if (particles[i].lifetime <= 0) {
-            particles.splice(i, 1);
-          }
-        }
         pop();
 
         if (tableShake.duration > 0) {
@@ -451,23 +431,14 @@
         if (keyCode === RIGHT_ARROW || key === "d" || key === "D") {
           move.x = 0.0078;
         }
-        if (playerId === 1) {
-          if (keyCode === UP_ARROW || key === "w" || key === "W") {
-            move.y = -0.0111; // Вверх уменьшает y
-          }
-          if (keyCode === DOWN_ARROW || key === "s" || key === "S") {
-            move.y = 0.0111; // Вниз увеличивает y
-          }
-        } else if (playerId === 2) {
-          if (keyCode === UP_ARROW || key === "w" || key === "W") {
-            move.y = -0.0111; // Вверх уменьшает y
-          }
-          if (keyCode === DOWN_ARROW || key === "s" || key === "S") {
-            move.y = 0.0111; // Вниз увеличивает y
-          }
+        if (keyCode === UP_ARROW || key === "w" || key === "W") {
+          move.y = -0.0111;
+        }
+        if (keyCode === DOWN_ARROW || key === "s" || key === "S") {
+          move.y = 0.0111;
         }
         if (move.x || move.y) {
-          ws.send(JSON.stringify({ type: "move", direction: move }));
+          ws.send(JSON.stringify({ type: "move", direction: move, playerId }));
         }
       }
 
@@ -480,13 +451,11 @@
           let deltaX = touchX - lastTouchX;
           let deltaY = touchY - lastTouchY;
           move.x = constrain(deltaX * 10, -0.0078, 0.0078);
-          if (playerId === 1) {
-            move.y = constrain(deltaY * 10, -0.0111, 0.0111);
-          } else if (playerId === 2) {
-            move.y = constrain(deltaY * 10, -0.0111, 0.0111);
-          }
+          move.y = constrain(deltaY * 10, -0.0111, 0.0111);
           if (move.x || move.y) {
-            ws.send(JSON.stringify({ type: "move", direction: move }));
+            ws.send(
+              JSON.stringify({ type: "move", direction: move, playerId })
+            );
           }
         }
         lastTouchX = touchX;
@@ -499,40 +468,11 @@
         lastTouchY = null;
       }
 
-      function createParticles(x, y, intensity, col) {
-        let count = Math.min(60, Math.floor(20 + intensity * 200));
-        for (let i = 0; i < count; i++) {
-          particles.push(new Particle(x, y, col));
-        }
-      }
-
-      class Particle {
-        constructor(x, y, col) {
-          this.x = x;
-          this.y = y;
-          this.vx = random(-7, 7);
-          this.vy = random(-7, 7);
-          this.lifetime = 50;
-          this.color = col || color(255, 0, 122, 200);
-        }
-        update() {
-          this.x += this.vx;
-          this.y += this.vy;
-          this.lifetime -= 1;
-          this.vx *= 0.95;
-          this.vy *= 0.95;
-        }
-        show() {
-          noStroke();
-          fill(this.color, this.lifetime * 5);
-          ellipse(this.x, this.y, width * 0.015, width * 0.015);
-        }
-      }
-
       function update() {
         if (gameState === "playing") {
-          ballTrail.push({ x: ball.x, y: ball.y, alpha: 200 });
-          if (ballTrail.length > 20) {
+          ballTrail.push({ x: ball.x, y: ball.y, alpha: 100 });
+          if (ballTrail.length > 10) {
+            // Уменьшаем с 20 до 10
             ballTrail.shift();
           }
         }
