@@ -177,6 +177,13 @@ function resetBall(isNewGame) {
   gameState.hitTimer = 7;
 }
 
+function normalizeSpeed(dx, dy, targetSpeed) {
+  const currentSpeed = Math.sqrt(dx * dx + dy * dy);
+  if (currentSpeed === 0) return { dx, dy };
+  const factor = targetSpeed / currentSpeed;
+  return { dx: dx * factor, dy: dy * factor };
+}
+
 function updateGame() {
   if (gameState.status !== "playing") return;
 
@@ -206,7 +213,6 @@ function updateGame() {
       });
       return;
     }
-    // Следим за положением мяча во время подачи
     gameState.ball.x =
       gameState.servingPlayer === 1
         ? gameState.paddle1.x + 0.0333
@@ -233,24 +239,23 @@ function updateGame() {
 
   gameState.ball.x += gameState.ball.dx;
   gameState.ball.y += gameState.ball.dy;
-  gameState.ball.dx *= 0.995; // Трение
-  gameState.ball.dy *= 0.995;
-
-  // Ограничение максимальной скорости
-  let speed = Math.sqrt(
-    gameState.ball.dx * gameState.ball.dx +
-      gameState.ball.dy * gameState.ball.dy
-  );
-  if (speed > 0.015) {
-    let factor = 0.015 / speed;
-    gameState.ball.dx *= factor;
-    gameState.ball.dy *= factor;
-  }
 
   let wallHit = false;
   if (gameState.ball.x <= 0.01 || gameState.ball.x >= 1 - 0.01) {
     gameState.ball.dx *= -1;
     gameState.ball.x = constrain(gameState.ball.x, 0.01, 1 - 0.01);
+    const speed =
+      0.008 *
+      (gameState.lastHitPlayer === 1
+        ? gameState.paddle1.charge
+        : gameState.paddle2.charge);
+    const normalized = normalizeSpeed(
+      gameState.ball.dx,
+      gameState.ball.dy,
+      speed
+    );
+    gameState.ball.dx = normalized.dx;
+    gameState.ball.dy = normalized.dy;
     wallHit = true;
   }
 
@@ -258,8 +263,8 @@ function updateGame() {
   let ballRadius = 0.01;
   let paddleWidth = 0.0667;
   let paddleHeight = 0.0333;
+  const baseSpeed = 0.008;
 
-  // Проверка столкновения с ракеткой игрока 1
   let collision1 = checkPaddleCollision(
     gameState.ball,
     gameState.paddle1,
@@ -271,9 +276,17 @@ function updateGame() {
     let hitPos = collision1.hitPos;
     if (gameState.ball.dx === 0 && gameState.ball.dy === 0) {
       if (gameState.servingPlayer === 1) {
-        // Подача: мяч всегда летит к игроку 2
-        gameState.ball.dx = 0.004 * hitPos + gameState.paddle1.vx * 0.5;
-        gameState.ball.dy = 0.008 * gameState.paddle1.charge; // Положительное значение для движения вниз
+        // Подача: мяч летит к игроку 2
+        const speed = baseSpeed * gameState.paddle1.charge;
+        gameState.ball.dx = hitPos * 0.004 + gameState.paddle1.vx * 0.5;
+        gameState.ball.dy = speed; // Движение вниз
+        const normalized = normalizeSpeed(
+          gameState.ball.dx,
+          gameState.ball.dy,
+          speed
+        );
+        gameState.ball.dx = normalized.dx;
+        gameState.ball.dy = normalized.dy;
         gameState.ball.y = gameState.paddle1.y + paddleHeight + ballRadius;
         gameState.lastHitPlayer = 1;
         gameState.serveTimer = 7;
@@ -281,12 +294,17 @@ function updateGame() {
         hit = true;
       }
     } else if (gameState.ball.dy > 0) {
-      // Обычный удар: мяч отражается вниз
-      gameState.ball.dx =
-        0.005 * hitPos +
-        gameState.paddle1.vx * 0.5 +
-        (Math.random() - 0.5) * 0.002;
-      gameState.ball.dy = -Math.abs(0.008 * gameState.paddle1.charge); // Отрицательное значение для движения вверх
+      // Обычный удар: мяч отражается к игроку 2
+      const speed = baseSpeed * gameState.paddle1.charge;
+      gameState.ball.dx = hitPos * 0.004 + gameState.paddle1.vx * 0.5;
+      gameState.ball.dy = speed; // Движение вниз
+      const normalized = normalizeSpeed(
+        gameState.ball.dx,
+        gameState.ball.dy,
+        speed
+      );
+      gameState.ball.dx = normalized.dx;
+      gameState.ball.dy = normalized.dy;
       gameState.ball.y = gameState.paddle1.y + paddleHeight + ballRadius;
       gameState.lastHitPlayer = 1;
       gameState.hitTimer = 7;
@@ -295,7 +313,6 @@ function updateGame() {
     }
   }
 
-  // Проверка столкновения с ракеткой игрока 2
   let collision2 = checkPaddleCollision(
     gameState.ball,
     gameState.paddle2,
@@ -307,9 +324,17 @@ function updateGame() {
     let hitPos = collision2.hitPos;
     if (gameState.ball.dx === 0 && gameState.ball.dy === 0) {
       if (gameState.servingPlayer === 2) {
-        // Подача: мяч всегда летит к игроку 1
-        gameState.ball.dx = 0.004 * hitPos + gameState.paddle2.vx * 0.5;
-        gameState.ball.dy = -0.008 * gameState.paddle2.charge; // Отрицательное значение для движения вверх
+        // Подача: мяч летит к игроку 1
+        const speed = baseSpeed * gameState.paddle2.charge;
+        gameState.ball.dx = hitPos * 0.004 + gameState.paddle2.vx * 0.5;
+        gameState.ball.dy = -speed; // Движение вверх
+        const normalized = normalizeSpeed(
+          gameState.ball.dx,
+          gameState.ball.dy,
+          speed
+        );
+        gameState.ball.dx = normalized.dx;
+        gameState.ball.dy = normalized.dy;
         gameState.ball.y = gameState.paddle2.y - ballRadius;
         gameState.lastHitPlayer = 2;
         gameState.serveTimer = 7;
@@ -317,12 +342,17 @@ function updateGame() {
         hit = true;
       }
     } else if (gameState.ball.dy < 0) {
-      // Обычный удар: мяч отражается вверх
-      gameState.ball.dx =
-        0.005 * hitPos +
-        gameState.paddle2.vx * 0.5 +
-        (Math.random() - 0.5) * 0.002;
-      gameState.ball.dy = Math.abs(0.008 * gameState.paddle2.charge); // Положительное значение для движения вниз
+      // Обычный удар: мяч отражается к игроку 1
+      const speed = baseSpeed * gameState.paddle2.charge;
+      gameState.ball.dx = hitPos * 0.004 + gameState.paddle2.vx * 0.5;
+      gameState.ball.dy = -speed; // Движение вверх
+      const normalized = normalizeSpeed(
+        gameState.ball.dx,
+        gameState.ball.dy,
+        speed
+      );
+      gameState.ball.dx = normalized.dx;
+      gameState.ball.dy = normalized.dy;
       gameState.ball.y = gameState.paddle2.y - ballRadius;
       gameState.lastHitPlayer = 2;
       gameState.hitTimer = 7;
@@ -331,7 +361,6 @@ function updateGame() {
     }
   }
 
-  // Проверка голов
   let goal = null;
   if (
     gameState.ball.y < 0.01 &&
@@ -353,7 +382,6 @@ function updateGame() {
     resetBall(false);
   }
 
-  // Проверка конца игры
   if (gameState.paddle1.score >= 7) {
     gameState.status = "gameOver";
     broadcast({ type: "gameOver", winner: 1 });
@@ -387,7 +415,7 @@ function broadcast(data) {
 setInterval(() => {
   const now = Date.now();
   players = players.filter((player) => {
-    if (now - gameState.lastPing.get(player) > 100000000) {
+    if (now - gameState.lastPing.get(player) > 10000) {
       player.close();
       return false;
     }
