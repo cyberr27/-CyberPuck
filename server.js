@@ -19,7 +19,6 @@ function checkPaddleCollision(
   paddleHeight,
   ballRadius
 ) {
-  // Проверяем столкновение мяча с ракеткой
   const ballX = ball.x;
   const ballY = ball.y;
   const paddleX = paddle.x;
@@ -31,9 +30,7 @@ function checkPaddleCollision(
     ballY + ballRadius >= paddleY &&
     ballY - ballRadius <= paddleY + paddleHeight
   ) {
-    // Вычисляем относительную позицию удара (-1 до 1)
     const hitPos = (ballX - paddleX - paddleWidth / 2) / (paddleWidth / 2);
-    // Вычисляем относительную скорость между мячом и ракеткой
     const relativeVelocityX = ball.dx - paddle.vx;
     const relativeVelocityY = ball.dy - paddle.vy;
     const speed = Math.sqrt(relativeVelocityX ** 2 + relativeVelocityY ** 2);
@@ -60,12 +57,13 @@ let gameState = {
   gameTimer: 180,
   lastHitPlayer: null,
   hitTimer: 7,
+  lastPing: new Map(),
+  newGameRequests: new Set(),
 };
 
 function updateGame() {
   if (gameState.status !== "playing") return;
 
-  // Обновляем таймер игры
   if (gameState.gameTimer > 0) {
     gameState.gameTimer -= 1 / 60;
   } else {
@@ -75,7 +73,6 @@ function updateGame() {
     return;
   }
 
-  // Обработка подачи
   if (gameState.ball.dx === 0 && gameState.ball.dy === 0) {
     gameState.serveTimer -= 1 / 60;
     if (gameState.serveTimer <= 0) {
@@ -117,7 +114,6 @@ function updateGame() {
     }
   }
 
-  // Обновляем позицию мяча
   gameState.ball.x += gameState.ball.dx;
   gameState.ball.y += gameState.ball.dy;
 
@@ -128,7 +124,6 @@ function updateGame() {
   let baseSpeed = 0.008;
   let maxSpeed = 0.015;
 
-  // Отскоки от стен
   if (gameState.ball.x <= 0.01 || gameState.ball.x >= 1 - 0.01) {
     gameState.ball.dx *= -1;
     gameState.ball.x = constrain(gameState.ball.x, 0.01, 1 - 0.01);
@@ -142,7 +137,6 @@ function updateGame() {
     wallHit = true;
   }
 
-  // Проверка голов
   if (
     gameState.ball.y < 0.01 &&
     gameState.ball.x >= 0.25 &&
@@ -192,7 +186,6 @@ function updateGame() {
     wallHit = true;
   }
 
-  // Проверка столкновений с ракетками
   let hit = false;
   let collision1 = checkPaddleCollision(
     gameState.ball,
@@ -208,10 +201,9 @@ function updateGame() {
       gameState.ball.dy === 0 &&
       gameState.servingPlayer === 1
     ) {
-      // Подача игрока 1
       const speed = baseSpeed;
       gameState.ball.dx = hitPos * 0.004 + gameState.paddle1.vx * 0.5;
-      gameState.ball.dy = speed; // Всегда вниз
+      gameState.ball.dy = speed;
       const normalized = normalizeSpeed(
         gameState.ball.dx,
         gameState.ball.dy,
@@ -225,10 +217,9 @@ function updateGame() {
       gameState.hitTimer = 7;
       hit = true;
     } else {
-      // Обычный удар
       const speed = Math.min(collision1.speed * 0.8 + baseSpeed, maxSpeed);
       gameState.ball.dx = hitPos * 0.004 + gameState.paddle1.vx * 0.5;
-      gameState.ball.dy = Math.abs(gameState.ball.dy) * 0.8 + baseSpeed; // Всегда вниз
+      gameState.ball.dy = Math.abs(gameState.ball.dy) * 0.8 + baseSpeed;
       const normalized = normalizeSpeed(
         gameState.ball.dx,
         gameState.ball.dy,
@@ -257,10 +248,9 @@ function updateGame() {
       gameState.ball.dy === 0 &&
       gameState.servingPlayer === 2
     ) {
-      // Подача игрока 2
       const speed = baseSpeed;
       gameState.ball.dx = hitPos * 0.004 + gameState.paddle2.vx * 0.5;
-      gameState.ball.dy = -speed; // Всегда вверх
+      gameState.ball.dy = -speed;
       const normalized = normalizeSpeed(
         gameState.ball.dx,
         gameState.ball.dy,
@@ -274,10 +264,9 @@ function updateGame() {
       gameState.hitTimer = 7;
       hit = true;
     } else {
-      // Обычный удар
       const speed = Math.min(collision2.speed * 0.8 + baseSpeed, maxSpeed);
       gameState.ball.dx = hitPos * 0.004 + gameState.paddle2.vx * 0.5;
-      gameState.ball.dy = -Math.abs(gameState.ball.dy) * 0.8 - baseSpeed; // Всегда вверх
+      gameState.ball.dy = -Math.abs(gameState.ball.dy) * 0.8 - baseSpeed;
       const normalized = normalizeSpeed(
         gameState.ball.dx,
         gameState.ball.dy,
@@ -292,7 +281,6 @@ function updateGame() {
     }
   }
 
-  // Проверка окончания игры
   if (gameState.paddle1.score >= 7) {
     gameState.status = "gameOver";
     broadcast({ type: "gameOver", winner: 1 });
@@ -317,7 +305,14 @@ function updateGame() {
 function broadcast(data) {
   players.forEach((player) => {
     if (player.readyState === WebSocket.OPEN) {
-      player.send(JSON.stringify(data));
+      try {
+        player.send(JSON.stringify(data));
+      } catch (error) {
+        console.error(
+          `Ошибка отправки сообщения игроку ${player.playerId}:`,
+          error
+        );
+      }
     }
   });
 }
@@ -356,6 +351,7 @@ function resetGame() {
   gameState.gameTimer = 180;
   gameState.lastHitPlayer = null;
   gameState.hitTimer = 7;
+  gameState.newGameRequests.clear();
 }
 
 function resetBall(isNewGame) {
@@ -373,6 +369,7 @@ function resetBall(isNewGame) {
 wss.on("connection", (ws) => {
   let playerId = players.length + 1;
   if (playerId > 2) {
+    console.log(`Попытка подключения игрока ${playerId}, но игра заполнена`);
     ws.send(JSON.stringify({ type: "error", message: "Игра уже заполнена!" }));
     ws.close();
     return;
@@ -389,40 +386,48 @@ wss.on("connection", (ws) => {
   );
 
   if (players.length === 2) {
+    console.log("Достаточно игроков, начинаем игру");
     startGame();
   }
 
   ws.on("message", (message) => {
-    const data = JSON.parse(message);
-    if (
-      data.type === "move" &&
-      gameState.status === "playing" &&
-      data.playerId
-    ) {
-      const direction = data.direction;
-      const paddle =
-        data.playerId === 1 ? gameState.paddle1 : gameState.paddle2;
+    try {
+      const data = JSON.parse(message);
+      if (
+        data.type === "move" &&
+        gameState.status === "playing" &&
+        data.playerId
+      ) {
+        const direction = data.direction;
+        const paddle =
+          data.playerId === 1 ? gameState.paddle1 : gameState.paddle2;
 
-      if (direction.x) {
-        paddle.vx = direction.x;
-        paddle.x = constrain(paddle.x + paddle.vx, 0, 1 - 0.0667);
+        if (direction.x) {
+          paddle.vx = direction.x;
+          paddle.x = constrain(paddle.x + paddle.vx, 0, 1 - 0.0667);
+        }
+        if (direction.y) {
+          paddle.vy = direction.y;
+          paddle.y = constrain(
+            paddle.y + direction.y,
+            data.playerId === 1 ? 0 : 0.6,
+            data.playerId === 1 ? 0.4 : 1 - 0.0333
+          );
+        }
+      } else if (data.type === "newGame" && gameState.status === "gameOver") {
+        gameState.newGameRequests.add(ws.playerId);
+        if (gameState.newGameRequests.size === 2) {
+          resetGame();
+          startGame();
+        }
+      } else if (data.type === "ping") {
+        gameState.lastPing.set(ws, Date.now());
       }
-      if (direction.y) {
-        paddle.vy = direction.y;
-        paddle.y = constrain(
-          paddle.y + direction.y,
-          data.playerId === 1 ? 0 : 0.6,
-          data.playerId === 1 ? 0.4 : 1 - 0.0333
-        );
-      }
-    } else if (data.type === "newGame" && gameState.status === "gameOver") {
-      gameState.newGameRequests.add(ws.playerId);
-      if (gameState.newGameRequests.size === 2) {
-        resetGame();
-        startGame();
-      }
-    } else if (data.type === "ping") {
-      gameState.lastPing.set(ws, Date.now());
+    } catch (error) {
+      console.error(
+        `Ошибка обработки сообщения от игрока ${ws.playerId}:`,
+        error
+      );
     }
   });
 
@@ -447,7 +452,7 @@ wss.on("connection", (ws) => {
 setInterval(() => {
   const now = Date.now();
   players = players.filter((player) => {
-    if (now - gameState.lastPing.get(player) > 100000000) {
+    if (now - gameState.lastPing.get(player) > 30000) {
       player.close();
       return false;
     }
