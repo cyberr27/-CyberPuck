@@ -22,6 +22,7 @@
         color: #00ffcc;
         overflow: hidden;
       }
+
       canvas {
         width: 70vw; /* 70% ширины экрана */
         height: 85vh; /* 85% высоты экрана */
@@ -30,6 +31,16 @@
         box-shadow: 0 0 20px #ff007a, 0 0 40px #00ffcc;
         box-sizing: border-box;
       }
+
+      /* Медиа-запрос для мобильных устройств (ширина до 768px) */
+      @media screen and (max-width: 768px) {
+        canvas {
+          width: 70vw; /* 70% ширины экрана */
+          height: 85vh; /* 85% высоты экрана */
+          margin: 10vh 15vw 5vh 15vw; /* Отступы: 10% сверху, 15% слева/справа, 5% снизу */
+        }
+      }
+
       #status {
         position: absolute;
         top: 2vh; /* Отступ от верха экрана */
@@ -40,6 +51,7 @@
         font-size: clamp(16px, 2vw, 24px);
         text-align: center;
       }
+
       #server {
         position: absolute;
         top: 5vh;
@@ -49,6 +61,7 @@
         text-shadow: 0 0 10px #ff007a;
         font-size: clamp(14px, 1.8vw, 20px);
       }
+
       #timer {
         position: absolute;
         top: 8vh;
@@ -58,6 +71,7 @@
         text-shadow: 0 0 10px #ff00ff;
         font-size: clamp(14px, 1.8vw, 20px);
       }
+
       #newGameButton {
         position: absolute;
         top: 11vh;
@@ -74,6 +88,7 @@
         cursor: pointer;
         display: none;
       }
+
       #newGameButton:hover {
         background: #ff007a;
         color: #0d0d1a;
@@ -354,8 +369,8 @@
 
       function windowResized() {
         // Рассчитываем ширину и высоту с учетом отступов
-        let targetWidth = windowWidth * 0.7; // 70% ширины
-        let targetHeight = windowHeight * 0.85; // 85% высоты
+        let targetWidth = window.innerWidth * 0.7; // 70% ширины экрана
+        let targetHeight = window.innerHeight * 0.85; // 85% высоты экрана
         // Поддерживаем соотношение сторон 2:1
         let aspectRatio = 2 / 1;
         if (targetWidth / targetHeight > aspectRatio) {
@@ -420,6 +435,11 @@
 
         if (Math.abs(move.x) > 0.0001 || Math.abs(move.y) > 0.0001) {
           ws.send(JSON.stringify({ type: "move", direction: move, playerId }));
+          console.log(
+            `Touch moved: x=${touchX}, y=${touchY}, move=${JSON.stringify(
+              move
+            )}`
+          );
         }
         return false;
       }
