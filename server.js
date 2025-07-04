@@ -124,9 +124,9 @@ function updateGame() {
   let baseSpeed = 0.008;
   let maxSpeed = 0.015;
 
-  if (gameState.ball.x <= 0.01 || gameState.ball.x >= 1 - 0.01) {
+  if (gameState.ball.x <= ballRadius || gameState.ball.x >= 1 - ballRadius) {
     gameState.ball.dx *= -1;
-    gameState.ball.x = constrain(gameState.ball.x, 0.01, 1 - 0.01);
+    gameState.ball.x = constrain(gameState.ball.x, ballRadius, 1 - ballRadius);
     const normalized = normalizeSpeed(
       gameState.ball.dx,
       gameState.ball.dy,
@@ -138,7 +138,7 @@ function updateGame() {
   }
 
   if (
-    gameState.ball.y < 0.01 &&
+    gameState.ball.y < ballRadius &&
     gameState.ball.x >= 0.25 &&
     gameState.ball.x <= 0.75
   ) {
@@ -156,7 +156,7 @@ function updateGame() {
       goal: 2,
     });
   } else if (
-    gameState.ball.y > 1 - 0.01 &&
+    gameState.ball.y > 1 - ballRadius &&
     gameState.ball.x >= 0.25 &&
     gameState.ball.x <= 0.75
   ) {
@@ -173,9 +173,12 @@ function updateGame() {
       gameTimer: gameState.gameTimer,
       goal: 1,
     });
-  } else if (gameState.ball.y <= 0.01 || gameState.ball.y >= 1 - 0.01) {
+  } else if (
+    gameState.ball.y <= ballRadius ||
+    gameState.ball.y >= 1 - ballRadius
+  ) {
     gameState.ball.dy *= -1;
-    gameState.ball.y = constrain(gameState.ball.y, 0.01, 1 - 0.01);
+    gameState.ball.y = constrain(gameState.ball.y, ballRadius, 1 - ballRadius);
     const normalized = normalizeSpeed(
       gameState.ball.dx,
       gameState.ball.dy,

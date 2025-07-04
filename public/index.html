@@ -23,24 +23,26 @@
         overflow: hidden;
       }
       canvas {
+        width: 70vw; /* 70% ширины экрана */
+        height: 85vh; /* 85% высоты экрана */
+        margin: 10vh 15vw 5vh 15vw; /* Отступы: 10% сверху, 15% слева/справа, 5% снизу */
         border: 2px solid #ff007a;
         box-shadow: 0 0 20px #ff007a, 0 0 40px #00ffcc;
-        width: 70vw;
-        height: 90vh;
+        box-sizing: border-box;
       }
       #status {
         position: absolute;
-        top: 10px;
+        top: 2vh; /* Отступ от верха экрана */
         left: 50%;
         transform: translateX(-50%);
         color: #00ffcc;
-        text-shadow: 0 0 10px8755 #00ffcc, 0 0 20px #ff007a;
+        text-shadow: 0 0 10px #00ffcc, 0 0 20px #ff007a;
         font-size: clamp(16px, 2vw, 24px);
         text-align: center;
       }
       #server {
         position: absolute;
-        top: 40px;
+        top: 5vh;
         left: 50%;
         transform: translateX(-50%);
         color: #ff007a;
@@ -49,7 +51,7 @@
       }
       #timer {
         position: absolute;
-        top: 60px;
+        top: 8vh;
         left: 50%;
         transform: translateX(-50%);
         color: #ff00ff;
@@ -58,7 +60,7 @@
       }
       #newGameButton {
         position: absolute;
-        top: 90px;
+        top: 11vh;
         left: 50%;
         transform: translateX(-50%);
         padding: 10px 20px;
@@ -96,10 +98,11 @@
       let gameTimer = 180;
       let ballTrail = [];
       let hitSound, strongHitSound, tableSound, goalSound, backgroundMusic;
-      let canvasWidth = 900;
-      let canvasHeight = 450;
-      let paddleWidth = 0.0667;
-      let paddleHeight = 0.0333;
+      let canvasWidth = 900; // Базовая ширина для нормализации
+      let canvasHeight = 450; // Базовая высота для нормализации
+      let paddleWidth = 0.0667; // Нормализованная ширина ракетки
+      let paddleHeight = 0.0333; // Нормализованная высота ракетки
+      let ballRadius = 0.01; // Нормализованный радиус мяча
       let tableShake = { x: 0, y: 0, duration: 0 };
       let neonPulse = 0;
 
@@ -117,9 +120,8 @@
 
       function setup() {
         let canvas = createCanvas(canvasWidth, canvasHeight);
-        canvas.style("width", "70vw");
-        canvas.style("height", "90vh");
-        windowResized();
+        canvas.parent(document.body); // Привязываем канвас к body
+        windowResized(); // Устанавливаем начальные размеры
         ws = new WebSocket("wss://" + window.location.host + "/ws");
 
         ws.onopen = () => {
@@ -284,7 +286,7 @@
         strokeWeight(2);
         line(0, height / 2, width, height / 2);
 
-        // Рисуем ракетки (без эффектов)
+        // Рисуем ракетки
         noStroke();
         fill(0, 255, 204);
         rect(
@@ -324,10 +326,18 @@
         fill(255, 0, 122);
         noStroke();
         ellipse(
-          constrain(ball.x * width, width * 0.01, width * (1 - 0.01)),
-          constrain(ball.y * height, height * 0.01, height * (1 - 0.01)),
-          width * 0.02,
-          width * 0.02
+          constrain(
+            ball.x * width,
+            width * ballRadius,
+            width * (1 - ballRadius)
+          ),
+          constrain(
+            ball.y * height,
+            height * ballRadius,
+            height * (1 - ballRadius)
+          ),
+          width * ballRadius * 2,
+          width * ballRadius * 2
         );
 
         pop();
@@ -343,22 +353,35 @@
       }
 
       function windowResized() {
-        let newWidth = min(windowWidth * 0.7, windowHeight * 2 * 0.7);
-        let newHeight = min(windowHeight * 0.9, newWidth * 0.5);
-        resizeCanvas(newWidth, newHeight);
-        console.log(`Canvas resized to ${newWidth}x${newHeight}`);
+        // Рассчитываем ширину и высоту с учетом отступов
+        let targetWidth = windowWidth * 0.7; // 70% ширины
+        let targetHeight = windowHeight * 0.85; // 85% высоты
+        // Поддерживаем соотношение сторон 2:1
+        let aspectRatio = 2 / 1;
+        if (targetWidth / targetHeight > aspectRatio) {
+          targetWidth = targetHeight * aspectRatio;
+        } else {
+          targetHeight = targetWidth / aspectRatio;
+        }
+        canvasWidth = targetWidth;
+        canvasHeight = targetHeight;
+        resizeCanvas(canvasWidth, canvasHeight);
+        console.log(`Canvas resized to ${canvasWidth}x${canvasHeight}`);
       }
 
       function mouseMoved() {
         if (gameState !== "playing" || !playerId) return;
-        let targetX = mouseX / width;
-        let targetY = mouseY / height;
+        let canvasRect = document
+          .querySelector("canvas")
+          .getBoundingClientRect();
+        let targetX = (mouseX - canvasRect.left) / canvasWidth;
+        let targetY = (mouseY - canvasRect.top) / canvasHeight;
         let paddle = playerId === 1 ? paddle1 : paddle2;
 
         targetY = constrain(
           targetY,
           playerId === 1 ? 0 : 0.6,
-          playerId === 1 ? 0.4 : 1 - 0.0333
+          playerId === 1 ? 0.4 : 1 - paddleHeight
         );
         targetX = constrain(targetX, 0, 1 - paddleWidth);
 
@@ -375,14 +398,17 @@
 
       function touchMoved() {
         if (gameState !== "playing" || !playerId) return;
-        let touchX = mouseX / width;
-        let touchY = mouseY / height;
+        let canvasRect = document
+          .querySelector("canvas")
+          .getBoundingClientRect();
+        let touchX = (touches[0].x - canvasRect.left) / canvasWidth;
+        let touchY = (touches[0].y - canvasRect.top) / canvasHeight;
         let paddle = playerId === 1 ? paddle1 : paddle2;
 
         touchY = constrain(
           touchY,
           playerId === 1 ? 0 : 0.6,
-          playerId === 1 ? 0.4 : 1 - 0.0333
+          playerId === 1 ? 0.4 : 1 - paddleHeight
         );
         touchX = constrain(touchX, 0, 1 - paddleWidth);
 
