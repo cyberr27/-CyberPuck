@@ -34,7 +34,7 @@
         left: 50%;
         transform: translateX(-50%);
         color: #00ffcc;
-        text-shadow: 0 0 10px #00ffcc, 0 0 20px #ff007a;
+        text-shadow: 0 0 10px8755 #00ffcc, 0 0 20px #ff007a;
         font-size: clamp(16px, 2vw, 24px);
         text-align: center;
       }
@@ -87,14 +87,13 @@
     <script>
       let ws;
       let playerId = null;
-      let paddle1 = { x: 0.5, y: 0.0667, score: 0, vx: 0, vy: 0, charge: 1 };
-      let paddle2 = { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0, charge: 1 };
+      let paddle1 = { x: 0.5, y: 0.0667, score: 0, vx: 0, vy: 0 };
+      let paddle2 = { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0 };
       let ball = { x: 0.5, y: 0.5, dx: 0, dy: 0 };
       let gameState = "waiting";
       let servingPlayer = 1;
       let serveTimer = 7;
       let gameTimer = 180;
-      let particles = [];
       let ballTrail = [];
       let hitSound, strongHitSound, tableSound, goalSound, backgroundMusic;
       let canvasWidth = 900;
@@ -103,8 +102,6 @@
       let paddleHeight = 0.0333;
       let tableShake = { x: 0, y: 0, duration: 0 };
       let neonPulse = 0;
-      let lastTouchX = null;
-      let lastTouchY = null;
 
       function preload() {
         hitSound = loadSound("/sounds/hit.mp3");
@@ -171,7 +168,6 @@
               score: data.paddle1.score,
               vx: data.paddle1.vx,
               vy: data.paddle1.vy,
-              charge: data.paddle1.charge || 1,
             };
             paddle2 = {
               x: data.paddle2.x,
@@ -179,7 +175,6 @@
               score: data.paddle2.score,
               vx: data.paddle2.vx,
               vy: data.paddle2.vy,
-              charge: data.paddle2.charge || 1,
             };
             ball = {
               x: data.ball.x,
@@ -204,7 +199,6 @@
               tableShake = { x: random(-2, 2), y: random(-2, 2), duration: 10 };
             }
             if (data.goal && goalSound) {
-              createGoalEffect(data.goal === 1 ? height : 0);
               goalSound.play();
             }
             if (data.foul) {
@@ -264,18 +258,14 @@
         push();
         translate(tableShake.x, tableShake.y);
         background(13, 13, 26, 200);
-        drawCyberBackground();
-
-        neonPulse = (neonPulse + 0.05) % TWO_PI;
-        let neonAlpha = map(sin(neonPulse), -1, 1, 100, 255);
 
         // Рисуем поле с закруглёнными углами
-        stroke(255, 0, 122, neonAlpha);
+        stroke(255, 0, 122);
         strokeWeight(4);
         noFill();
-        rect(0, 0, width, height, 20); // Радиус углов 20px
+        rect(0, 0, width, height, 20);
 
-        // Остальные линии (середина, ворота)
+        // Линии поля
         stroke(0, 255, 204, 50);
         strokeWeight(1);
         for (let x = 0; x < width; x += width / 30) {
@@ -294,13 +284,8 @@
         strokeWeight(2);
         line(0, height / 2, width, height / 2);
 
+        // Рисуем ракетки (без эффектов)
         noStroke();
-        let paddle1Glow =
-          20 + (Math.abs(paddle1.vx) + Math.abs(paddle1.vy)) * 500;
-        let paddle2Glow =
-          20 + (Math.abs(paddle2.vx) + Math.abs(paddle2.vy)) * 500;
-        drawingContext.shadowBlur = paddle1Glow;
-        drawingContext.shadowColor = `rgba(0, 255, 204, 0.9)`;
         fill(0, 255, 204);
         rect(
           constrain(paddle1.x * width, 0, width - paddleWidth * width),
@@ -309,8 +294,6 @@
           paddleHeight * height,
           5
         );
-        drawingContext.shadowBlur = paddle2Glow;
-        drawingContext.shadowColor = `rgba(0, 255, 204, 0.9)`;
         rect(
           constrain(paddle2.x * width, 0, width - paddleWidth * width),
           constrain(
@@ -322,31 +305,8 @@
           paddleHeight * height,
           5
         );
-        drawingContext.shadowBlur = 0;
 
-        let energy1 = map(
-          Math.sqrt(paddle1.vx * paddle1.vx + paddle1.vy * paddle1.vy),
-          0,
-          0.0111,
-          0,
-          paddleWidth * width
-        );
-        let energy2 = map(
-          Math.sqrt(paddle2.vx * paddle2.vx + paddle2.vy * paddle2.vy),
-          0,
-          0.0111,
-          0,
-          paddleWidth * width
-        );
-        fill(255, 0, 122, 150);
-        rect(paddle1.x * width, paddle1.y * height - 10, energy1, 5);
-        rect(
-          paddle2.x * width,
-          paddle2.y * height + paddleHeight * height + 5,
-          energy2,
-          5
-        );
-
+        // Рисуем след мяча
         for (let i = ballTrail.length - 1; i >= 0; i--) {
           let trail = ballTrail[i];
           let alpha = map(i, 0, ballTrail.length - 1, 20, 100);
@@ -360,20 +320,15 @@
           }
         }
 
-        let ballSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
-        drawingContext.shadowBlur = 20 + ballSpeed * 3000;
-        drawingContext.shadowColor = `rgba(255, 0, 122, 1)`;
+        // Рисуем мяч
         fill(255, 0, 122);
         noStroke();
-        let smoothedBallX = lerp(ball.x * width, ball.x * width, 0.9);
-        let smoothedBallY = lerp(ball.y * height, ball.y * height, 0.9);
         ellipse(
-          constrain(smoothedBallX, width * 0.01, width * (1 - 0.01)),
-          constrain(smoothedBallY, height * 0.01, height * (1 - 0.01)),
+          constrain(ball.x * width, width * 0.01, width * (1 - 0.01)),
+          constrain(ball.y * height, height * 0.01, height * (1 - 0.01)),
           width * 0.02,
           width * 0.02
         );
-        drawingContext.shadowBlur = 0;
 
         pop();
 
@@ -384,33 +339,6 @@
         } else {
           tableShake.x = 0;
           tableShake.y = 0;
-        }
-      }
-
-      function drawCyberBackground() {
-        stroke(255, 0, 122, 60);
-        strokeWeight(2);
-        for (let i = 0; i < 12; i++) {
-          let x = ((frameCount * 2 + i * 100) % (width + 100)) - 50;
-          line(x, 0, x - 50, height);
-        }
-        stroke(0, 255, 204, 60);
-        for (let i = 0; i < 12; i++) {
-          let y = ((frameCount + i * 80) % (height + 80)) - 40;
-          line(0, y, width, y);
-        }
-      }
-
-      function createGoalEffect(y) {
-        let count = 60;
-        for (let i = 0; i < count; i++) {
-          particles.push(
-            new Particle(
-              random(width * 0.25, width * 0.75),
-              y,
-              color(255, 0, 255)
-            )
-          );
         }
       }
 
@@ -427,7 +355,6 @@
         let targetY = mouseY / height;
         let paddle = playerId === 1 ? paddle1 : paddle2;
 
-        // Ограничение по половине поля
         targetY = constrain(
           targetY,
           playerId === 1 ? 0 : 0.6,
@@ -435,8 +362,7 @@
         );
         targetX = constrain(targetX, 0, 1 - paddleWidth);
 
-        // Плавное движение с инерцией
-        let lerpFactor = 0.2; // Скорость следования за курсором
+        let lerpFactor = 0.2;
         let move = {
           x: (targetX - paddle.x) * lerpFactor,
           y: (targetY - paddle.y) * lerpFactor,
@@ -453,7 +379,6 @@
         let touchY = mouseY / height;
         let paddle = playerId === 1 ? paddle1 : paddle2;
 
-        // Ограничение по половине поля
         touchY = constrain(
           touchY,
           playerId === 1 ? 0 : 0.6,
@@ -461,7 +386,6 @@
         );
         touchX = constrain(touchX, 0, 1 - paddleWidth);
 
-        // Плавное движение с инерцией
         let lerpFactor = 0.2;
         let move = {
           x: (touchX - paddle.x) * lerpFactor,
@@ -475,7 +399,6 @@
       }
 
       function keyPressed() {
-        // Оставляем управление клавишами как резервное
         if (gameState !== "playing") return;
         let move = {};
         if (keyCode === LEFT_ARROW || key === "a" || key === "A") {
@@ -493,11 +416,6 @@
         if (move.x || move.y) {
           ws.send(JSON.stringify({ type: "move", direction: move, playerId }));
         }
-      }
-
-      function touchEnded() {
-        lastTouchX = null;
-        lastTouchY = null;
       }
 
       function update() {
