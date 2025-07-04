@@ -24,26 +24,46 @@
       }
 
       canvas {
-        width: 70vw; /* 70% ширины экрана */
-        height: 85vh; /* 85% высоты экрана */
-        margin: 10vh 15vw 5vh 15vw; /* Отступы: 10% сверху, 15% слева/справа, 5% снизу */
+        width: 70vw;
+        height: 85vh;
+        margin: 10vh 15vw 5vh 15vw;
         border: 2px solid #ff007a;
         box-shadow: 0 0 20px #ff007a, 0 0 40px #00ffcc;
         box-sizing: border-box;
       }
 
-      /* Медиа-запрос для мобильных устройств (ширина до 768px) */
       @media screen and (max-width: 768px) {
         canvas {
-          width: 70vw; /* 70% ширины экрана */
-          height: 85vh; /* 85% высоты экрана */
-          margin: 10vh 15vw 5vh 15vw; /* Отступы: 10% сверху, 15% слева/справа, 5% снизу */
+          width: 85vw;
+          height: 70vh;
+          margin: 7.5vh 7.5vw;
+          transform: rotate(-90deg);
+          transform-origin: center;
+        }
+
+        #rotateDevice {
+          display: block;
+        }
+
+        @media (orientation: landscape) {
+          canvas {
+            display: block;
+          }
+          #rotateDevice {
+            display: none;
+          }
+        }
+
+        @media (orientation: portrait) {
+          canvas {
+            display: none;
+          }
         }
       }
 
       #status {
         position: absolute;
-        top: 2vh; /* Отступ от верха экрана */
+        top: 2vh;
         left: 50%;
         transform: translateX(-50%);
         color: #00ffcc;
@@ -101,6 +121,22 @@
     <div id="server">Подача: Игрок 1</div>
     <div id="timer">03:00</div>
     <button id="newGameButton" onclick="requestNewGame()">Новая игра</button>
+    <div
+      id="rotateDevice"
+      style="
+        display: none;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #ff007a;
+        text-shadow: 0 0 10px #ff007a;
+        font-size: clamp(16px, 4vw, 24px);
+        text-align: center;
+      "
+    >
+      Поверните устройство для игры!
+    </div>
     <script>
       let ws;
       let playerId = null;
@@ -113,11 +149,11 @@
       let gameTimer = 180;
       let ballTrail = [];
       let hitSound, strongHitSound, tableSound, goalSound, backgroundMusic;
-      let canvasWidth = 900; // Базовая ширина для нормализации
-      let canvasHeight = 450; // Базовая высота для нормализации
-      let paddleWidth = 0.0667; // Нормализованная ширина ракетки
-      let paddleHeight = 0.0333; // Нормализованная высота ракетки
-      let ballRadius = 0.01; // Нормализованный радиус мяча
+      let canvasWidth = 900;
+      let canvasHeight = 450;
+      let paddleWidth = 0.0667;
+      let paddleHeight = 0.0333;
+      let ballRadius = 0.01;
       let tableShake = { x: 0, y: 0, duration: 0 };
       let neonPulse = 0;
 
@@ -135,8 +171,10 @@
 
       function setup() {
         let canvas = createCanvas(canvasWidth, canvasHeight);
-        canvas.parent(document.body); // Привязываем канвас к body
-        windowResized(); // Устанавливаем начальные размеры
+        canvas.parent(document.body);
+        windowResized();
+        window.addEventListener("orientationchange", windowResized);
+
         ws = new WebSocket("wss://" + window.location.host + "/ws");
 
         ws.onopen = () => {
@@ -271,18 +309,125 @@
           "Ожидание второго игрока...";
       }
 
+      function windowResized() {
+        let isMobile = window.innerWidth <= 768;
+        let targetWidth, targetHeight;
+
+        if (isMobile && window.matchMedia("(orientation: landscape)").matches) {
+          targetWidth = window.innerHeight * 0.85;
+          targetHeight = window.innerWidth * 0.7;
+        } else {
+          targetWidth = window.innerWidth * 0.7;
+          targetHeight = window.innerHeight * 0.85;
+        }
+
+        let aspectRatio = 2 / 1;
+        if (targetWidth / targetHeight > aspectRatio) {
+          targetWidth = targetHeight * aspectRatio;
+        } else {
+          targetHeight = targetWidth / aspectRatio;
+        }
+
+        canvasWidth = targetWidth;
+        canvasHeight = targetHeight;
+        resizeCanvas(canvasWidth, canvasHeight);
+        console.log(
+          `Canvas resized to ${canvasWidth}x${canvasHeight}, mobile: ${isMobile}`
+        );
+      }
+
+      function mouseMoved() {
+        if (gameState !== "playing" || !playerId) return;
+
+        let canvasRect = document
+          .querySelector("canvas")
+          .getBoundingClientRect();
+        let isMobile =
+          window.innerWidth <= 768 &&
+          window.matchMedia("(orientation: landscape)").matches;
+        let targetX, targetY;
+
+        if (isMobile) {
+          targetX = 1 - (mouseY - canvasRect.top) / canvasHeight;
+          targetY = (mouseX - canvasRect.left) / canvasWidth;
+        } else {
+          targetX = (mouseX - canvasRect.left) / canvasWidth;
+          targetY = (mouseY - canvasRect.top) / canvasHeight;
+        }
+
+        let paddle = playerId === 1 ? paddle1 : paddle2;
+        targetY = constrain(
+          targetY,
+          playerId === 1 ? 0 : 0.6,
+          playerId === 1 ? 0.4 : 1 - paddleHeight
+        );
+        targetX = constrain(targetX, 0, 1 - paddleWidth);
+
+        let lerpFactor = 0.2;
+        let move = {
+          x: (targetX - paddle.x) * lerpFactor,
+          y: (targetY - paddle.y) * lerpFactor,
+        };
+
+        if (Math.abs(move.x) > 0.0001 || Math.abs(move.y) > 0.0001) {
+          ws.send(JSON.stringify({ type: "move", direction: move, playerId }));
+        }
+      }
+
+      function touchMoved() {
+        if (gameState !== "playing" || !playerId) return;
+
+        let canvasRect = document
+          .querySelector("canvas")
+          .getBoundingClientRect();
+        let isMobile =
+          window.innerWidth <= 768 &&
+          window.matchMedia("(orientation: landscape)").matches;
+        let touchX, touchY;
+
+        if (isMobile) {
+          touchX = 1 - (touches[0].y - canvasRect.top) / canvasHeight;
+          touchY = (touches[0].x - canvasRect.left) / canvasWidth;
+        } else {
+          touchX = (touches[0].x - canvasRect.left) / canvasWidth;
+          touchY = (touches[0].y - canvasRect.top) / canvasHeight;
+        }
+
+        let paddle = playerId === 1 ? paddle1 : paddle2;
+        touchY = constrain(
+          touchY,
+          playerId === 1 ? 0 : 0.6,
+          playerId === 1 ? 0.4 : 1 - paddleHeight
+        );
+        touchX = constrain(touchX, 0, 1 - paddleWidth);
+
+        let lerpFactor = 0.2;
+        let move = {
+          x: (touchX - paddle.x) * lerpFactor,
+          y: (touchY - paddle.y) * lerpFactor,
+        };
+
+        if (Math.abs(move.x) > 0.0001 || Math.abs(move.y) > 0.0001) {
+          ws.send(JSON.stringify({ type: "move", direction: move, playerId }));
+          console.log(
+            `Touch moved: x=${touchX}, y=${touchY}, move=${JSON.stringify(
+              move
+            )}`
+          );
+        }
+        return false;
+      }
+
       function draw() {
         push();
         translate(tableShake.x, tableShake.y);
         background(13, 13, 26, 200);
 
-        // Рисуем поле с закруглёнными углами
         stroke(255, 0, 122);
         strokeWeight(4);
         noFill();
         rect(0, 0, width, height, 20);
 
-        // Линии поля
         stroke(0, 255, 204, 50);
         strokeWeight(1);
         for (let x = 0; x < width; x += width / 30) {
@@ -301,7 +446,6 @@
         strokeWeight(2);
         line(0, height / 2, width, height / 2);
 
-        // Рисуем ракетки
         noStroke();
         fill(0, 255, 204);
         rect(
@@ -323,7 +467,6 @@
           5
         );
 
-        // Рисуем след мяча
         for (let i = ballTrail.length - 1; i >= 0; i--) {
           let trail = ballTrail[i];
           let alpha = map(i, 0, ballTrail.length - 1, 20, 100);
@@ -337,7 +480,6 @@
           }
         }
 
-        // Рисуем мяч
         fill(255, 0, 122);
         noStroke();
         ellipse(
@@ -365,83 +507,6 @@
           tableShake.x = 0;
           tableShake.y = 0;
         }
-      }
-
-      function windowResized() {
-        // Рассчитываем ширину и высоту с учетом отступов
-        let targetWidth = window.innerWidth * 0.7; // 70% ширины экрана
-        let targetHeight = window.innerHeight * 0.85; // 85% высоты экрана
-        // Поддерживаем соотношение сторон 2:1
-        let aspectRatio = 2 / 1;
-        if (targetWidth / targetHeight > aspectRatio) {
-          targetWidth = targetHeight * aspectRatio;
-        } else {
-          targetHeight = targetWidth / aspectRatio;
-        }
-        canvasWidth = targetWidth;
-        canvasHeight = targetHeight;
-        resizeCanvas(canvasWidth, canvasHeight);
-        console.log(`Canvas resized to ${canvasWidth}x${canvasHeight}`);
-      }
-
-      function mouseMoved() {
-        if (gameState !== "playing" || !playerId) return;
-        let canvasRect = document
-          .querySelector("canvas")
-          .getBoundingClientRect();
-        let targetX = (mouseX - canvasRect.left) / canvasWidth;
-        let targetY = (mouseY - canvasRect.top) / canvasHeight;
-        let paddle = playerId === 1 ? paddle1 : paddle2;
-
-        targetY = constrain(
-          targetY,
-          playerId === 1 ? 0 : 0.6,
-          playerId === 1 ? 0.4 : 1 - paddleHeight
-        );
-        targetX = constrain(targetX, 0, 1 - paddleWidth);
-
-        let lerpFactor = 0.2;
-        let move = {
-          x: (targetX - paddle.x) * lerpFactor,
-          y: (targetY - paddle.y) * lerpFactor,
-        };
-
-        if (Math.abs(move.x) > 0.0001 || Math.abs(move.y) > 0.0001) {
-          ws.send(JSON.stringify({ type: "move", direction: move, playerId }));
-        }
-      }
-
-      function touchMoved() {
-        if (gameState !== "playing" || !playerId) return;
-        let canvasRect = document
-          .querySelector("canvas")
-          .getBoundingClientRect();
-        let touchX = (touches[0].x - canvasRect.left) / canvasWidth;
-        let touchY = (touches[0].y - canvasRect.top) / canvasHeight;
-        let paddle = playerId === 1 ? paddle1 : paddle2;
-
-        touchY = constrain(
-          touchY,
-          playerId === 1 ? 0 : 0.6,
-          playerId === 1 ? 0.4 : 1 - paddleHeight
-        );
-        touchX = constrain(touchX, 0, 1 - paddleWidth);
-
-        let lerpFactor = 0.2;
-        let move = {
-          x: (touchX - paddle.x) * lerpFactor,
-          y: (touchY - paddle.y) * lerpFactor,
-        };
-
-        if (Math.abs(move.x) > 0.0001 || Math.abs(move.y) > 0.0001) {
-          ws.send(JSON.stringify({ type: "move", direction: move, playerId }));
-          console.log(
-            `Touch moved: x=${touchX}, y=${touchY}, move=${JSON.stringify(
-              move
-            )}`
-          );
-        }
-        return false;
       }
 
       function keyPressed() {
