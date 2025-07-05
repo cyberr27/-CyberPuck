@@ -17,7 +17,8 @@ function checkPaddleCollision(
   paddle,
   paddleWidth,
   paddleHeight,
-  ballRadius
+  ballRadius,
+  isLandscapeMobile
 ) {
   const ballX = ball.x;
   const ballY = ball.y;
@@ -30,7 +31,9 @@ function checkPaddleCollision(
     ballY + ballRadius >= paddleY &&
     ballY - ballRadius <= paddleY + paddleHeight
   ) {
-    const hitPos = (ballX - paddleX - paddleWidth / 2) / (paddleWidth / 2);
+    const hitPos = isLandscapeMobile
+      ? (ballY - paddleY - paddleHeight / 2) / (paddleHeight / 2)
+      : (ballX - paddleX - paddleWidth / 2) / (paddleWidth / 2);
     const relativeVelocityX = ball.dx - paddle.vx;
     const relativeVelocityY = ball.dy - paddle.vy;
     const speed = Math.sqrt(relativeVelocityX ** 2 + relativeVelocityY ** 2);
@@ -48,8 +51,8 @@ function normalizeSpeed(dx, dy, targetSpeed) {
 
 let players = [];
 let gameState = {
-  paddle1: { x: 0.5, y: 0.0667, score: 0, vx: 0, vy: 0 },
-  paddle2: { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0 },
+  paddle1: { x: 0.0667, y: 0.5, score: 0, vx: 0, vy: 0 },
+  paddle2: { x: 0.9333, y: 0.5, score: 0, vx: 0, vy: 0 },
   ball: { x: 0.5, y: 0.5, dx: 0, dy: 0 },
   status: "waiting",
   servingPlayer: 1,
@@ -59,6 +62,7 @@ let gameState = {
   hitTimer: 7,
   lastPing: new Map(),
   newGameRequests: new Set(),
+  isLandscapeMobile: false, // Флаг для ориентации
 };
 
 function updateGame() {
@@ -90,11 +94,11 @@ function updateGame() {
       });
       return;
     }
-    gameState.ball.x =
+    gameState.ball.x = gameState.servingPlayer === 1 ? 0.1 : 0.9;
+    gameState.ball.y =
       gameState.servingPlayer === 1
-        ? gameState.paddle1.x + 0.0333
-        : gameState.paddle2.x + 0.0333;
-    gameState.ball.y = gameState.servingPlayer === 1 ? 0.1 : 0.9;
+        ? gameState.paddle1.y + 0.0333
+        : gameState.paddle2.y + 0.0333;
   } else {
     gameState.hitTimer -= 1 / 60;
     if (gameState.hitTimer <= 0) {
@@ -119,74 +123,125 @@ function updateGame() {
 
   let wallHit = false;
   let ballRadius = 0.01;
-  let paddleWidth = 0.0667;
-  let paddleHeight = 0.0333;
+  let paddleWidth = 0.0333;
+  let paddleHeight = 0.0667;
   let baseSpeed = 0.008;
   let maxSpeed = 0.015;
 
-  if (gameState.ball.x <= ballRadius || gameState.ball.x >= 1 - ballRadius) {
-    gameState.ball.dx *= -1;
-    gameState.ball.x = constrain(gameState.ball.x, ballRadius, 1 - ballRadius);
-    const normalized = normalizeSpeed(
-      gameState.ball.dx,
-      gameState.ball.dy,
-      baseSpeed
-    );
-    gameState.ball.dx = normalized.dx;
-    gameState.ball.dy = normalized.dy;
-    wallHit = true;
-  }
-
-  if (
-    gameState.ball.y < ballRadius &&
-    gameState.ball.x >= 0.25 &&
-    gameState.ball.x <= 0.75
-  ) {
-    gameState.paddle2.score += 1;
-    gameState.servingPlayer = 1;
-    resetBall(false);
-    broadcast({
-      type: "update",
-      paddle1: gameState.paddle1,
-      paddle2: gameState.paddle2,
-      ball: gameState.ball,
-      servingPlayer: gameState.servingPlayer,
-      serveTimer: gameState.serveTimer,
-      gameTimer: gameState.gameTimer,
-      goal: 2,
-    });
-  } else if (
-    gameState.ball.y > 1 - ballRadius &&
-    gameState.ball.x >= 0.25 &&
-    gameState.ball.x <= 0.75
-  ) {
-    gameState.paddle1.score += 1;
-    gameState.servingPlayer = 2;
-    resetBall(false);
-    broadcast({
-      type: "update",
-      paddle1: gameState.paddle1,
-      paddle2: gameState.paddle2,
-      ball: gameState.ball,
-      servingPlayer: gameState.servingPlayer,
-      serveTimer: gameState.serveTimer,
-      gameTimer: gameState.gameTimer,
-      goal: 1,
-    });
-  } else if (
-    gameState.ball.y <= ballRadius ||
-    gameState.ball.y >= 1 - ballRadius
-  ) {
-    gameState.ball.dy *= -1;
-    gameState.ball.y = constrain(gameState.ball.y, ballRadius, 1 - ballRadius);
-    const normalized = normalizeSpeed(
-      gameState.ball.dx,
-      gameState.ball.dy,
-      baseSpeed
-    );
-    gameState.ball.dx = normalized.dx;
-    gameState.ball.dy = normalized.dy;
-    wallHit = true;
+  if (gameState.isLandscapeMobile) {
+    // Ландшафтная ориентация: голы слева и справа
+    if (
+      gameState.ball.x < ballRadius &&
+      gameState.ball.y >= 0.25 &&
+      gameState.ball.y <= 0.75
+    ) {
+      gameState.paddle2.score += 1;
+      gameState.servingPlayer = 1;
+      resetBall(false);
+      broadcast({
+        type: "update",
+        paddle1: gameState.paddle1,
+        paddle2: gameState.paddle2,
+        ball: gameState.ball,
+        servingPlayer: gameState.servingPlayer,
+        serveTimer: gameState.serveTimer,
+        gameTimer: gameState.gameTimer,
+        goal: 2,
+      });
+    } else if (
+      gameState.ball.x > 1 - ballRadius &&
+      gameState.ball.y >= 0.25 &&
+      gameState.ball.y <= 0.75
+    ) {
+      gameState.paddle1.score += 1;
+      gameState.servingPlayer = 2;
+      resetBall(false);
+      broadcast({
+        type: "update",
+        paddle1: gameState.paddle1,
+        paddle2: gameState.paddle2,
+        ball: gameState.ball,
+        servingPlayer: gameState.servingPlayer,
+        serveTimer: gameState.serveTimer,
+        gameTimer: gameState.gameTimer,
+        goal: 1,
+      });
+    } else if (
+      gameState.ball.y <= ballRadius ||
+      gameState.ball.y >= 1 - ballRadius
+    ) {
+      gameState.ball.dy *= -1;
+      gameState.ball.y = constrain(
+        gameState.ball.y,
+        ballRadius,
+        1 - ballRadius
+      );
+      const normalized = normalizeSpeed(
+        gameState.ball.dx,
+        gameState.ball.dy,
+        baseSpeed
+      );
+      gameState.ball.dx = normalized.dx;
+      gameState.ball.dy = normalized.dy;
+      wallHit = true;
+    }
+  } else {
+    // Портретная ориентация или десктоп: голы сверху и снизу
+    if (
+      gameState.ball.y < ballRadius &&
+      gameState.ball.x >= 0.25 &&
+      gameState.ball.x <= 0.75
+    ) {
+      gameState.paddle2.score += 1;
+      gameState.servingPlayer = 1;
+      resetBall(false);
+      broadcast({
+        type: "update",
+        paddle1: gameState.paddle1,
+        paddle2: gameState.paddle2,
+        ball: gameState.ball,
+        servingPlayer: gameState.servingPlayer,
+        serveTimer: gameState.serveTimer,
+        gameTimer: gameState.gameTimer,
+        goal: 2,
+      });
+    } else if (
+      gameState.ball.y > 1 - ballRadius &&
+      gameState.ball.x >= 0.25 &&
+      gameState.ball.x <= 0.75
+    ) {
+      gameState.paddle1.score += 1;
+      gameState.servingPlayer = 2;
+      resetBall(false);
+      broadcast({
+        type: "update",
+        paddle1: gameState.paddle1,
+        paddle2: gameState.paddle2,
+        ball: gameState.ball,
+        servingPlayer: gameState.servingPlayer,
+        serveTimer: gameState.serveTimer,
+        gameTimer: gameState.gameTimer,
+        goal: 1,
+      });
+    } else if (
+      gameState.ball.x <= ballRadius ||
+      gameState.ball.x >= 1 - ballRadius
+    ) {
+      gameState.ball.dx *= -1;
+      gameState.ball.x = constrain(
+        gameState.ball.x,
+        ballRadius,
+        1 - ballRadius
+      );
+      const normalized = normalizeSpeed(
+        gameState.ball.dx,
+        gameState.ball.dy,
+        baseSpeed
+      );
+      gameState.ball.dx = normalized.dx;
+      gameState.ball.dy = normalized.dy;
+      wallHit = true;
+    }
   }
 
   let hit = false;
@@ -195,7 +250,8 @@ function updateGame() {
     gameState.paddle1,
     paddleWidth,
     paddleHeight,
-    ballRadius
+    ballRadius,
+    gameState.isLandscapeMobile
   );
   if (collision1.hit) {
     let hitPos = collision1.hitPos;
@@ -205,32 +261,58 @@ function updateGame() {
       gameState.servingPlayer === 1
     ) {
       const speed = baseSpeed;
-      gameState.ball.dx = hitPos * 0.004 + gameState.paddle1.vx * 0.5;
-      gameState.ball.dy = speed;
-      const normalized = normalizeSpeed(
-        gameState.ball.dx,
-        gameState.ball.dy,
-        speed
-      );
-      gameState.ball.dx = normalized.dx;
-      gameState.ball.dy = normalized.dy;
-      gameState.ball.y = gameState.paddle1.y + paddleHeight + ballRadius;
+      if (gameState.isLandscapeMobile) {
+        gameState.ball.dx = speed;
+        gameState.ball.dy = hitPos * 0.004 + gameState.paddle1.vy * 0.5;
+        const normalized = normalizeSpeed(
+          gameState.ball.dx,
+          gameState.ball.dy,
+          speed
+        );
+        gameState.ball.dx = normalized.dx;
+        gameState.ball.dy = normalized.dy;
+        gameState.ball.x = gameState.paddle1.x + paddleWidth + ballRadius;
+      } else {
+        gameState.ball.dx = hitPos * 0.004 + gameState.paddle1.vx * 0.5;
+        gameState.ball.dy = speed;
+        const normalized = normalizeSpeed(
+          gameState.ball.dx,
+          gameState.ball.dy,
+          speed
+        );
+        gameState.ball.dx = normalized.dx;
+        gameState.ball.dy = normalized.dy;
+        gameState.ball.y = gameState.paddle1.y + paddleHeight + ballRadius;
+      }
       gameState.lastHitPlayer = 1;
       gameState.serveTimer = 7;
       gameState.hitTimer = 7;
       hit = true;
     } else {
       const speed = Math.min(collision1.speed * 0.8 + baseSpeed, maxSpeed);
-      gameState.ball.dx = hitPos * 0.004 + gameState.paddle1.vx * 0.5;
-      gameState.ball.dy = Math.abs(gameState.ball.dy) * 0.8 + baseSpeed;
-      const normalized = normalizeSpeed(
-        gameState.ball.dx,
-        gameState.ball.dy,
-        speed
-      );
-      gameState.ball.dx = normalized.dx;
-      gameState.ball.dy = normalized.dy;
-      gameState.ball.y = gameState.paddle1.y + paddleHeight + ballRadius;
+      if (gameState.isLandscapeMobile) {
+        gameState.ball.dx = Math.abs(gameState.ball.dx) * 0.8 + baseSpeed;
+        gameState.ball.dy = hitPos * 0.004 + gameState.paddle1.vy * 0.5;
+        const normalized = normalizeSpeed(
+          gameState.ball.dx,
+          gameState.ball.dy,
+          speed
+        );
+        gameState.ball.dx = normalized.dx;
+        gameState.ball.dy = normalized.dy;
+        gameState.ball.x = gameState.paddle1.x + paddleWidth + ballRadius;
+      } else {
+        gameState.ball.dx = hitPos * 0.004 + gameState.paddle1.vx * 0.5;
+        gameState.ball.dy = Math.abs(gameState.ball.dy) * 0.8 + baseSpeed;
+        const normalized = normalizeSpeed(
+          gameState.ball.dx,
+          gameState.ball.dy,
+          speed
+        );
+        gameState.ball.dx = normalized.dx;
+        gameState.ball.dy = normalized.dy;
+        gameState.ball.y = gameState.paddle1.y + paddleHeight + ballRadius;
+      }
       gameState.lastHitPlayer = 1;
       gameState.hitTimer = 7;
       hit = true;
@@ -242,7 +324,8 @@ function updateGame() {
     gameState.paddle2,
     paddleWidth,
     paddleHeight,
-    ballRadius
+    ballRadius,
+    gameState.isLandscapeMobile
   );
   if (collision2.hit) {
     let hitPos = collision2.hitPos;
@@ -252,32 +335,58 @@ function updateGame() {
       gameState.servingPlayer === 2
     ) {
       const speed = baseSpeed;
-      gameState.ball.dx = hitPos * 0.004 + gameState.paddle2.vx * 0.5;
-      gameState.ball.dy = -speed;
-      const normalized = normalizeSpeed(
-        gameState.ball.dx,
-        gameState.ball.dy,
-        speed
-      );
-      gameState.ball.dx = normalized.dx;
-      gameState.ball.dy = normalized.dy;
-      gameState.ball.y = gameState.paddle2.y - ballRadius;
+      if (gameState.isLandscapeMobile) {
+        gameState.ball.dx = -speed;
+        gameState.ball.dy = hitPos * 0.004 + gameState.paddle2.vy * 0.5;
+        const normalized = normalizeSpeed(
+          gameState.ball.dx,
+          gameState.ball.dy,
+          speed
+        );
+        gameState.ball.dx = normalized.dx;
+        gameState.ball.dy = normalized.dy;
+        gameState.ball.x = gameState.paddle2.x - ballRadius;
+      } else {
+        gameState.ball.dx = hitPos * 0.004 + gameState.paddle2.vx * 0.5;
+        gameState.ball.dy = -speed;
+        const normalized = normalizeSpeed(
+          gameState.ball.dx,
+          gameState.ball.dy,
+          speed
+        );
+        gameState.ball.dx = normalized.dx;
+        gameState.ball.dy = normalized.dy;
+        gameState.ball.y = gameState.paddle2.y - ballRadius;
+      }
       gameState.lastHitPlayer = 2;
       gameState.serveTimer = 7;
       gameState.hitTimer = 7;
       hit = true;
     } else {
       const speed = Math.min(collision2.speed * 0.8 + baseSpeed, maxSpeed);
-      gameState.ball.dx = hitPos * 0.004 + gameState.paddle2.vx * 0.5;
-      gameState.ball.dy = -Math.abs(gameState.ball.dy) * 0.8 - baseSpeed;
-      const normalized = normalizeSpeed(
-        gameState.ball.dx,
-        gameState.ball.dy,
-        speed
-      );
-      gameState.ball.dx = normalized.dx;
-      gameState.ball.dy = normalized.dy;
-      gameState.ball.y = gameState.paddle2.y - ballRadius;
+      if (gameState.isLandscapeMobile) {
+        gameState.ball.dx = -Math.abs(gameState.ball.dx) * 0.8 - baseSpeed;
+        gameState.ball.dy = hitPos * 0.004 + gameState.paddle2.vy * 0.5;
+        const normalized = normalizeSpeed(
+          gameState.ball.dx,
+          gameState.ball.dy,
+          speed
+        );
+        gameState.ball.dx = normalized.dx;
+        gameState.ball.dy = normalized.dy;
+        gameState.ball.x = gameState.paddle2.x - ballRadius;
+      } else {
+        gameState.ball.dx = hitPos * 0.004 + gameState.paddle2.vx * 0.5;
+        gameState.ball.dy = -Math.abs(gameState.ball.dy) * 0.8 - baseSpeed;
+        const normalized = normalizeSpeed(
+          gameState.ball.dx,
+          gameState.ball.dy,
+          speed
+        );
+        gameState.ball.dx = normalized.dx;
+        gameState.ball.dy = normalized.dy;
+        gameState.ball.y = gameState.paddle2.y - ballRadius;
+      }
       gameState.lastHitPlayer = 2;
       gameState.hitTimer = 7;
       hit = true;
@@ -321,9 +430,13 @@ function broadcast(data) {
 }
 
 function startGame() {
+  // Определяем ориентацию на основе первого подключившегося игрока (можно улучшить)
+  gameState.isLandscapeMobile = players.some((p) =>
+    p._socket.remoteAddress.includes("mobile")
+  ); // Это упрощение, нужно передать ориентацию с клиента
   gameState.status = "playing";
-  gameState.paddle1 = { x: 0.5, y: 0.0667, score: 0, vx: 0, vy: 0 };
-  gameState.paddle2 = { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0 };
+  gameState.paddle1 = { x: 0.0667, y: 0.5, score: 0, vx: 0, vy: 0 };
+  gameState.paddle2 = { x: 0.9333, y: 0.5, score: 0, vx: 0, vy: 0 };
   gameState.servingPlayer = Math.random() < 0.5 ? 1 : 2;
   gameState.serveTimer = 7;
   gameState.gameTimer = 180;
@@ -345,8 +458,8 @@ function startGame() {
 }
 
 function resetGame() {
-  gameState.paddle1 = { x: 0.5, y: 0.0667, score: 0, vx: 0, vy: 0 };
-  gameState.paddle2 = { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0 };
+  gameState.paddle1 = { x: 0.0667, y: 0.5, score: 0, vx: 0, vy: 0 };
+  gameState.paddle2 = { x: 0.9333, y: 0.5, score: 0, vx: 0, vy: 0 };
   gameState.ball = { x: 0.5, y: 0.5, dx: 0, dy: 0 };
   gameState.status = "waiting";
   gameState.servingPlayer = Math.random() < 0.5 ? 1 : 2;
@@ -358,11 +471,11 @@ function resetGame() {
 }
 
 function resetBall(isNewGame) {
-  gameState.ball.x =
+  gameState.ball.x = gameState.servingPlayer === 1 ? 0.1 : 0.9;
+  gameState.ball.y =
     gameState.servingPlayer === 1
-      ? gameState.paddle1.x + 0.0333
-      : gameState.paddle2.x + 0.0333;
-  gameState.ball.y = gameState.servingPlayer === 1 ? 0.1 : 0.9;
+      ? gameState.paddle1.y + 0.0333
+      : gameState.paddle2.y + 0.0333;
   gameState.ball.dx = 0;
   gameState.ball.dy = 0;
   gameState.serveTimer = 7;
@@ -396,6 +509,9 @@ wss.on("connection", (ws) => {
   ws.on("message", (message) => {
     try {
       const data = JSON.parse(message);
+      if (data.type === "orientation") {
+        gameState.isLandscapeMobile = data.isLandscape;
+      }
       if (
         data.type === "move" &&
         gameState.status === "playing" &&
@@ -405,17 +521,32 @@ wss.on("connection", (ws) => {
         const paddle =
           data.playerId === 1 ? gameState.paddle1 : gameState.paddle2;
 
-        if (direction.x) {
-          paddle.vx = direction.x;
-          paddle.x = constrain(paddle.x + paddle.vx, 0, 1 - 0.0667);
-        }
-        if (direction.y) {
-          paddle.vy = direction.y;
-          paddle.y = constrain(
-            paddle.y + direction.y,
-            data.playerId === 1 ? 0 : 0.6,
-            data.playerId === 1 ? 0.4 : 1 - 0.0333
-          );
+        if (gameState.isLandscapeMobile) {
+          if (direction.y) {
+            paddle.vy = direction.y;
+            paddle.y = constrain(paddle.y + paddle.vy, 0, 1 - 0.0667);
+          }
+          if (direction.x) {
+            paddle.vx = direction.x;
+            paddle.x = constrain(
+              paddle.x + direction.x,
+              data.playerId === 1 ? 0 : 0.6,
+              data.playerId === 1 ? 0.4 : 1 - 0.0333
+            );
+          }
+        } else {
+          if (direction.x) {
+            paddle.vx = direction.x;
+            paddle.x = constrain(paddle.x + paddle.vx, 0, 1 - 0.0667);
+          }
+          if (direction.y) {
+            paddle.vy = direction.y;
+            paddle.y = constrain(
+              paddle.y + direction.y,
+              data.playerId === 1 ? 0 : 0.6,
+              data.playerId === 1 ? 0.4 : 1 - 0.0333
+            );
+          }
         }
       } else if (data.type === "newGame" && gameState.status === "gameOver") {
         gameState.newGameRequests.add(ws.playerId);

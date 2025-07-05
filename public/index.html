@@ -34,11 +34,9 @@
 
       @media screen and (max-width: 768px) {
         canvas {
-          width: 85vw;
-          height: 70vh;
-          margin: 7.5vh 7.5vw;
-          transform: rotate(-90deg);
-          transform-origin: center;
+          width: 90vw; /* Увеличиваем ширину для ландшафтной ориентации */
+          height: 80vh; /* Увеличиваем высоту */
+          margin: 5vh 5vw;
         }
 
         #rotateDevice {
@@ -56,7 +54,7 @@
 
         @media (orientation: portrait) {
           canvas {
-            display: none;
+            display: block; /* Показываем канвас и в портретной ориентации */
           }
         }
       }
@@ -140,8 +138,8 @@
     <script>
       let ws;
       let playerId = null;
-      let paddle1 = { x: 0.5, y: 0.0667, score: 0, vx: 0, vy: 0 };
-      let paddle2 = { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0 };
+      let paddle1 = { x: 0.0667, y: 0.5, score: 0, vx: 0, vy: 0 }; // Поменяли x и y для горизонтального движения
+      let paddle2 = { x: 0.9333, y: 0.5, score: 0, vx: 0, vy: 0 }; // Поменяли x и y
       let ball = { x: 0.5, y: 0.5, dx: 0, dy: 0 };
       let gameState = "waiting";
       let servingPlayer = 1;
@@ -151,11 +149,12 @@
       let hitSound, strongHitSound, tableSound, goalSound, backgroundMusic;
       let canvasWidth = 900;
       let canvasHeight = 450;
-      let paddleWidth = 0.0667;
-      let paddleHeight = 0.0333;
+      let paddleWidth = 0.0333; // Поменяли ширину и высоту ракетки
+      let paddleHeight = 0.0667;
       let ballRadius = 0.01;
       let tableShake = { x: 0, y: 0, duration: 0 };
       let neonPulse = 0;
+      let isLandscapeMobile = false; // Флаг для ландшафтной ориентации
 
       function preload() {
         hitSound = loadSound("/sounds/hit.mp3");
@@ -179,6 +178,12 @@
 
         ws.onopen = () => {
           console.log("Подключено к WebSocket");
+          ws.send(
+            JSON.stringify({
+              type: "orientation",
+              isLandscape: isLandscapeMobile,
+            })
+          );
           if (backgroundMusic) {
             backgroundMusic.loop();
             backgroundMusic.setVolume(0.3);
@@ -311,17 +316,21 @@
 
       function windowResized() {
         let isMobile = window.innerWidth <= 768;
+        isLandscapeMobile =
+          isMobile && window.matchMedia("(orientation: landscape)").matches;
         let targetWidth, targetHeight;
 
-        if (isMobile && window.matchMedia("(orientation: landscape)").matches) {
-          targetWidth = window.innerHeight * 0.85;
-          targetHeight = window.innerWidth * 0.7;
+        if (isLandscapeMobile) {
+          // Для ландшафтной ориентации: ширина больше, высота меньше
+          targetWidth = window.innerWidth * 0.9;
+          targetHeight = window.innerHeight * 0.8;
         } else {
+          // Для десктопа или портретной ориентации
           targetWidth = window.innerWidth * 0.7;
           targetHeight = window.innerHeight * 0.85;
         }
 
-        let aspectRatio = 2 / 1;
+        let aspectRatio = 2 / 1; // Сохраняем соотношение сторон 2:1
         if (targetWidth / targetHeight > aspectRatio) {
           targetWidth = targetHeight * aspectRatio;
         } else {
@@ -332,7 +341,7 @@
         canvasHeight = targetHeight;
         resizeCanvas(canvasWidth, canvasHeight);
         console.log(
-          `Canvas resized to ${canvasWidth}x${canvasHeight}, mobile: ${isMobile}`
+          `Canvas resized to ${canvasWidth}x${canvasHeight}, mobile: ${isMobile}, landscape: ${isLandscapeMobile}`
         );
       }
 
@@ -342,26 +351,33 @@
         let canvasRect = document
           .querySelector("canvas")
           .getBoundingClientRect();
-        let isMobile =
-          window.innerWidth <= 768 &&
-          window.matchMedia("(orientation: landscape)").matches;
         let targetX, targetY;
 
-        if (isMobile) {
-          targetX = 1 - (mouseY - canvasRect.top) / canvasHeight;
-          targetY = (mouseX - canvasRect.left) / canvasWidth;
+        if (isLandscapeMobile) {
+          // В ландшафтной ориентации: ракетки двигаются по горизонтали (X)
+          targetY = (mouseX - canvasRect.left) / canvasWidth; // Y-координата для движения по горизонтали
+          targetX = 1 - (mouseY - canvasRect.top) / canvasHeight; // X-координата для ограничения по вертикали
         } else {
           targetX = (mouseX - canvasRect.left) / canvasWidth;
           targetY = (mouseY - canvasRect.top) / canvasHeight;
         }
 
         let paddle = playerId === 1 ? paddle1 : paddle2;
-        targetY = constrain(
-          targetY,
-          playerId === 1 ? 0 : 0.6,
-          playerId === 1 ? 0.4 : 1 - paddleHeight
-        );
-        targetX = constrain(targetX, 0, 1 - paddleWidth);
+        if (isLandscapeMobile) {
+          targetX = constrain(targetX, 0, 1 - paddleHeight); // paddleHeight, так как ракетка повернута
+          targetY = constrain(
+            targetY,
+            playerId === 1 ? 0 : 0.6,
+            playerId === 1 ? 0.4 : 1 - paddleWidth
+          );
+        } else {
+          targetY = constrain(
+            targetY,
+            playerId === 1 ? 0 : 0.6,
+            playerId === 1 ? 0.4 : 1 - paddleHeight
+          );
+          targetX = constrain(targetX, 0, 1 - paddleWidth);
+        }
 
         let lerpFactor = 0.2;
         let move = {
@@ -380,26 +396,32 @@
         let canvasRect = document
           .querySelector("canvas")
           .getBoundingClientRect();
-        let isMobile =
-          window.innerWidth <= 768 &&
-          window.matchMedia("(orientation: landscape)").matches;
         let touchX, touchY;
 
-        if (isMobile) {
-          touchX = 1 - (touches[0].y - canvasRect.top) / canvasHeight;
+        if (isLandscapeMobile) {
           touchY = (touches[0].x - canvasRect.left) / canvasWidth;
+          touchX = 1 - (touches[0].y - canvasRect.top) / canvasHeight;
         } else {
           touchX = (touches[0].x - canvasRect.left) / canvasWidth;
           touchY = (touches[0].y - canvasRect.top) / canvasHeight;
         }
 
         let paddle = playerId === 1 ? paddle1 : paddle2;
-        touchY = constrain(
-          touchY,
-          playerId === 1 ? 0 : 0.6,
-          playerId === 1 ? 0.4 : 1 - paddleHeight
-        );
-        touchX = constrain(touchX, 0, 1 - paddleWidth);
+        if (isLandscapeMobile) {
+          touchX = constrain(touchX, 0, 1 - paddleHeight);
+          touchY = constrain(
+            touchY,
+            playerId === 1 ? 0 : 0.6,
+            playerId === 1 ? 0.4 : 1 - paddleWidth
+          );
+        } else {
+          touchY = constrain(
+            touchY,
+            playerId === 1 ? 0 : 0.6,
+            playerId === 1 ? 0.4 : 1 - paddleHeight
+          );
+          touchX = constrain(touchX, 0, 1 - paddleWidth);
+        }
 
         let lerpFactor = 0.2;
         let move = {
@@ -423,6 +445,7 @@
         translate(tableShake.x, tableShake.y);
         background(13, 13, 26, 200);
 
+        // Отрисовка поля
         stroke(255, 0, 122);
         strokeWeight(4);
         noFill();
@@ -437,36 +460,67 @@
           line(0, y, width, y);
         }
 
+        // Отрисовка ворот
         stroke(255, 0, 255, 150);
         strokeWeight(6);
-        line(width * 0.25, 0, width * 0.75, 0);
-        line(width * 0.25, height, width * 0.75, height);
+        if (isLandscapeMobile) {
+          // Ворота слева и справа
+          line(0, height * 0.25, 0, height * 0.75);
+          line(width, height * 0.25, width, height * 0.75);
+        } else {
+          // Ворота сверху и снизу
+          line(width * 0.25, 0, width * 0.75, 0);
+          line(width * 0.25, height, width * 0.75, height);
+        }
 
         stroke(255, 0, 255, 100);
         strokeWeight(2);
         line(0, height / 2, width, height / 2);
 
+        // Отрисовка ракеток
         noStroke();
         fill(0, 255, 204);
-        rect(
-          constrain(paddle1.x * width, 0, width - paddleWidth * width),
-          constrain(paddle1.y * height, 0, height * 0.4),
-          paddleWidth * width,
-          paddleHeight * height,
-          5
-        );
-        rect(
-          constrain(paddle2.x * width, 0, width - paddleWidth * width),
-          constrain(
-            paddle2.y * height,
-            height * 0.6,
-            height - paddleHeight * height
-          ),
-          paddleWidth * width,
-          paddleHeight * height,
-          5
-        );
+        if (isLandscapeMobile) {
+          rect(
+            constrain(paddle1.x * width, 0, width * 0.4),
+            constrain(paddle1.y * height, 0, height - paddleHeight * height),
+            paddleWidth * width,
+            paddleHeight * height,
+            5
+          );
+          rect(
+            constrain(
+              paddle2.x * width,
+              width * 0.6,
+              width - paddleWidth * width
+            ),
+            constrain(paddle2.y * height, 0, height - paddleHeight * height),
+            paddleWidth * width,
+            paddleHeight * height,
+            5
+          );
+        } else {
+          rect(
+            constrain(paddle1.x * width, 0, width - paddleWidth * width),
+            constrain(paddle1.y * height, 0, height * 0.4),
+            paddleWidth * width,
+            paddleHeight * height,
+            5
+          );
+          rect(
+            constrain(paddle2.x * width, 0, width - paddleWidth * width),
+            constrain(
+              paddle2.y * height,
+              height * 0.6,
+              height - paddleHeight * height
+            ),
+            paddleWidth * width,
+            paddleHeight * height,
+            5
+          );
+        }
 
+        // Отрисовка следа мяча
         for (let i = ballTrail.length - 1; i >= 0; i--) {
           let trail = ballTrail[i];
           let alpha = map(i, 0, ballTrail.length - 1, 20, 100);
@@ -480,6 +534,7 @@
           }
         }
 
+        // Отрисовка мяча
         fill(255, 0, 122);
         noStroke();
         ellipse(
@@ -512,17 +567,32 @@
       function keyPressed() {
         if (gameState !== "playing") return;
         let move = {};
-        if (keyCode === LEFT_ARROW || key === "a" || key === "A") {
-          move.x = -0.0078;
-        }
-        if (keyCode === RIGHT_ARROW || key === "d" || key === "D") {
-          move.x = 0.0078;
-        }
-        if (keyCode === UP_ARROW || key === "w" || key === "W") {
-          move.y = -0.0111;
-        }
-        if (keyCode === DOWN_ARROW || key === "s" || key === "S") {
-          move.y = 0.0111;
+        if (isLandscapeMobile) {
+          if (keyCode === UP_ARROW || key === "w" || key === "W") {
+            move.y = -0.0111;
+          }
+          if (keyCode === DOWN_ARROW || key === "s" || key === "S") {
+            move.y = 0.0111;
+          }
+          if (keyCode === LEFT_ARROW || key === "a" || key === "A") {
+            move.x = -0.0078;
+          }
+          if (keyCode === RIGHT_ARROW || key === "d" || key === "D") {
+            move.x = 0.0078;
+          }
+        } else {
+          if (keyCode === LEFT_ARROW || key === "a" || key === "A") {
+            move.x = -0.0078;
+          }
+          if (keyCode === RIGHT_ARROW || key === "d" || key === "D") {
+            move.x = 0.0078;
+          }
+          if (keyCode === UP_ARROW || key === "w" || key === "W") {
+            move.y = -0.0111;
+          }
+          if (keyCode === DOWN_ARROW || key === "s" || key === "S") {
+            move.y = 0.0111;
+          }
         }
         if (move.x || move.y) {
           ws.send(JSON.stringify({ type: "move", direction: move, playerId }));
