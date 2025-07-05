@@ -102,6 +102,8 @@
       let paddleHeight = 0.0333;
       let tableShake = { x: 0, y: 0, duration: 0 };
       let neonPulse = 0;
+      let isDragging = false; // Флаг для перетаскивания ракетки
+      let touchId = null; // ID касания для мобильных устройств
 
       function preload() {
         hitSound = loadSound("/sounds/hit.mp3");
@@ -284,7 +286,7 @@
         strokeWeight(2);
         line(0, height / 2, width, height / 2);
 
-        // Рисуем ракетки (без эффектов)
+        // Рисуем ракетки
         noStroke();
         fill(0, 255, 204);
         rect(
@@ -351,71 +353,101 @@
 
       function mouseMoved() {
         if (gameState !== "playing" || !playerId) return;
+
         let targetX = mouseX / width;
         let targetY = mouseY / height;
         let paddle = playerId === 1 ? paddle1 : paddle2;
 
+        targetX = constrain(targetX, 0, 1 - paddleWidth);
         targetY = constrain(
           targetY,
           playerId === 1 ? 0 : 0.6,
-          playerId === 1 ? 0.4 : 1 - 0.0333
+          playerId === 1 ? 0.4 : 1 - paddleHeight
         );
-        targetX = constrain(targetX, 0, 1 - paddleWidth);
 
-        let lerpFactor = 0.2;
         let move = {
-          x: (targetX - paddle.x) * lerpFactor,
-          y: (targetY - paddle.y) * lerpFactor,
+          x: targetX - paddle.x,
+          y: targetY - paddle.y,
         };
+
+        paddle.x = targetX;
+        paddle.y = targetY;
 
         if (Math.abs(move.x) > 0.0001 || Math.abs(move.y) > 0.0001) {
           ws.send(JSON.stringify({ type: "move", direction: move, playerId }));
         }
       }
 
-      function touchMoved() {
-        if (gameState !== "playing" || !playerId) return;
-        let touchX = mouseX / width;
-        let touchY = mouseY / height;
+      function touchStarted() {
+        if (gameState !== "playing" || !playerId) return false;
+
+        let touch = touches[0];
+        if (!touch) return false;
+
+        let touchX = touch.x / width;
+        let touchY = touch.y / height;
         let paddle = playerId === 1 ? paddle1 : paddle2;
 
-        touchY = constrain(
-          touchY,
-          playerId === 1 ? 0 : 0.6,
-          playerId === 1 ? 0.4 : 1 - 0.0333
-        );
-        touchX = constrain(touchX, 0, 1 - paddleWidth);
+        let paddleLeft = paddle.x;
+        let paddleRight = paddle.x + paddleWidth;
+        let paddleTop = paddle.y;
+        let paddleBottom = paddle.y + paddleHeight;
 
-        let lerpFactor = 0.2;
-        let move = {
-          x: (touchX - paddle.x) * lerpFactor,
-          y: (touchY - paddle.y) * lerpFactor,
-        };
-
-        if (Math.abs(move.x) > 0.0001 || Math.abs(move.y) > 0.0001) {
-          ws.send(JSON.stringify({ type: "move", direction: move, playerId }));
+        if (
+          touchX >= paddleLeft &&
+          touchX <= paddleRight &&
+          touchY >= paddleTop &&
+          touchY <= paddleBottom
+        ) {
+          isDragging = true;
+          touchId = touch.id;
         }
+
         return false;
       }
 
-      function keyPressed() {
-        if (gameState !== "playing") return;
-        let move = {};
-        if (keyCode === LEFT_ARROW || key === "a" || key === "A") {
-          move.x = -0.0078;
-        }
-        if (keyCode === RIGHT_ARROW || key === "d" || key === "D") {
-          move.x = 0.0078;
-        }
-        if (keyCode === UP_ARROW || key === "w" || key === "W") {
-          move.y = -0.0111;
-        }
-        if (keyCode === DOWN_ARROW || key === "s" || key === "S") {
-          move.y = 0.0111;
-        }
-        if (move.x || move.y) {
+      function touchMoved() {
+        if (gameState !== "playing" || !playerId || !isDragging) return false;
+
+        let touch = touches.find((t) => t.id === touchId);
+        if (!touch) return false;
+
+        let touchX = touch.x / width;
+        let touchY = touch.y / height;
+        let paddle = playerId === 1 ? paddle1 : paddle2;
+
+        touchX = constrain(touchX, 0, 1 - paddleWidth);
+        touchY = constrain(
+          touchY,
+          playerId === 1 ? 0 : 0.6,
+          playerId === 1 ? 0.4 : 1 - paddleHeight
+        );
+
+        let move = {
+          x: touchX - paddle.x,
+          y: touchY - paddle.y,
+        };
+
+        paddle.x = touchX;
+        paddle.y = touchY;
+
+        if (Math.abs(move.x) > 0.0001 || Math.abs(move.y) > 0.0001) {
           ws.send(JSON.stringify({ type: "move", direction: move, playerId }));
         }
+
+        return false;
+      }
+
+      function touchEnded() {
+        if (gameState !== "playing" || !playerId) return false;
+
+        let touch = touches.find((t) => t.id === touchId);
+        if (!touch) {
+          isDragging = false;
+          touchId = null;
+        }
+
+        return false;
       }
 
       function update() {
