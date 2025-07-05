@@ -398,22 +398,20 @@ wss.on("connection", (ws) => {
         gameState.status === "playing" &&
         data.playerId
       ) {
-        const direction = data.direction;
+        const position = data.position;
         const paddle =
           data.playerId === 1 ? gameState.paddle1 : gameState.paddle2;
 
-        if (direction.x) {
-          paddle.vx = direction.x;
-          paddle.x = constrain(paddle.x + paddle.vx, 0, 1 - 0.0667);
-        }
-        if (direction.y) {
-          paddle.vy = direction.y;
-          paddle.y = constrain(
-            paddle.y + direction.y,
-            data.playerId === 1 ? 0 : 0.6,
-            data.playerId === 1 ? 0.4 : 1 - 0.0333
-          );
-        }
+        // Обновляем позицию с учетом ограничений
+        paddle.x = constrain(position.x, 0, 1 - 0.0667);
+        paddle.y = constrain(
+          position.y,
+          data.playerId === 1 ? 0 : 0.6,
+          data.playerId === 1 ? 0.4 : 1 - 0.0333
+        );
+        // Скорость рассчитываем для физики столкновений
+        paddle.vx = position.x - paddle.x;
+        paddle.vy = position.y - paddle.y;
       } else if (data.type === "newGame" && gameState.status === "gameOver") {
         gameState.newGameRequests.add(ws.playerId);
         if (gameState.newGameRequests.size === 2) {
@@ -452,7 +450,8 @@ wss.on("connection", (ws) => {
 setInterval(() => {
   const now = Date.now();
   players = players.filter((player) => {
-    if (now - gameState.lastPing.get(player) > 1000000) {
+    if (now - gameState.lastPing.get(player) > 10000) {
+      // Уменьшено до 10 секунд
       player.close();
       return false;
     }

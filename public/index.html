@@ -87,8 +87,24 @@
     <script>
       let ws;
       let playerId = null;
-      let paddle1 = { x: 0.5, y: 0.0667, score: 0, vx: 0, vy: 0 };
-      let paddle2 = { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0 };
+      let paddle1 = {
+        x: 0.5,
+        y: 0.0667,
+        score: 0,
+        vx: 0,
+        vy: 0,
+        targetX: 0.5,
+        targetY: 0.0667,
+      };
+      let paddle2 = {
+        x: 0.5,
+        y: 0.9333,
+        score: 0,
+        vx: 0,
+        vy: 0,
+        targetX: 0.5,
+        targetY: 0.9333,
+      };
       let ball = { x: 0.5, y: 0.5, dx: 0, dy: 0 };
       let gameState = "waiting";
       let servingPlayer = 1;
@@ -102,8 +118,10 @@
       let paddleHeight = 0.0333;
       let tableShake = { x: 0, y: 0, duration: 0 };
       let neonPulse = 0;
-      let isDragging = false; // Флаг для перетаскивания ракетки
-      let touchId = null; // ID касания для мобильных устройств
+      let isDragging = false;
+      let touchId = null;
+      let lastMoveSent = 0;
+      const moveSendInterval = 1000 / 30; // Ограничение: 30 сообщений в секунду
 
       function preload() {
         hitSound = loadSound("/sounds/hit.mp3");
@@ -129,8 +147,6 @@
           if (backgroundMusic) {
             backgroundMusic.loop();
             backgroundMusic.setVolume(0.3);
-          } else {
-            console.warn("Фоновая музыка не загружена");
           }
         };
 
@@ -152,8 +168,16 @@
             servingPlayer = data.servingPlayer;
             serveTimer = data.serveTimer;
             gameTimer = data.gameTimer;
-            paddle1 = data.paddle1 || paddle1;
-            paddle2 = data.paddle2 || paddle2;
+            paddle1 = {
+              ...data.paddle1,
+              targetX: data.paddle1.x,
+              targetY: data.paddle1.y,
+            };
+            paddle2 = {
+              ...data.paddle2,
+              targetX: data.paddle2.x,
+              targetY: data.paddle2.y,
+            };
             ball = data.ball || ball;
             document.getElementById(
               "status"
@@ -164,20 +188,17 @@
             document.getElementById("timer").innerText = formatTime(gameTimer);
             document.getElementById("newGameButton").style.display = "none";
           } else if (data.type === "update") {
-            paddle1 = {
-              x: data.paddle1.x,
-              y: data.paddle1.y,
-              score: data.paddle1.score,
-              vx: data.paddle1.vx,
-              vy: data.paddle1.vy,
-            };
-            paddle2 = {
-              x: data.paddle2.x,
-              y: data.paddle2.y,
-              score: data.paddle2.score,
-              vx: data.paddle2.vx,
-              vy: data.paddle2.vy,
-            };
+            // Обновляем целевые позиции для интерполяции
+            paddle1.targetX = data.paddle1.x;
+            paddle1.targetY = data.paddle1.y;
+            paddle1.score = data.paddle1.score;
+            paddle1.vx = data.paddle1.vx;
+            paddle1.vy = data.paddle1.vy;
+            paddle2.targetX = data.paddle2.x;
+            paddle2.targetY = data.paddle2.y;
+            paddle2.score = data.paddle2.score;
+            paddle2.vx = data.paddle2.vx;
+            paddle2.vy = data.paddle2.vy;
             ball = {
               x: data.ball.x,
               y: data.ball.y,
@@ -286,6 +307,13 @@
         strokeWeight(2);
         line(0, height / 2, width, height / 2);
 
+        // Интерполяция позиций ракеток
+        const lerpFactor = 0.2; // Скорость интерполяции
+        paddle1.x = lerp(paddle1.x, paddle1.targetX, lerpFactor);
+        paddle1.y = lerp(paddle1.y, paddle1.targetY, lerpFactor);
+        paddle2.x = lerp(paddle2.x, paddle2.targetX, lerpFactor);
+        paddle2.y = lerp(paddle2.y, paddle2.targetY, lerpFactor);
+
         // Рисуем ракетки
         noStroke();
         fill(0, 255, 204);
@@ -354,6 +382,9 @@
       function mouseMoved() {
         if (gameState !== "playing" || !playerId) return;
 
+        let currentTime = millis();
+        if (currentTime - lastMoveSent < moveSendInterval) return;
+
         let targetX = mouseX / width;
         let targetY = mouseY / height;
         let paddle = playerId === 1 ? paddle1 : paddle2;
@@ -365,16 +396,20 @@
           playerId === 1 ? 0.4 : 1 - paddleHeight
         );
 
-        let move = {
-          x: targetX - paddle.x,
-          y: targetY - paddle.y,
-        };
-
+        // Локальное предсказание
         paddle.x = targetX;
         paddle.y = targetY;
+        paddle.targetX = targetX;
+        paddle.targetY = targetY;
 
-        if (Math.abs(move.x) > 0.0001 || Math.abs(move.y) > 0.0001) {
-          ws.send(JSON.stringify({ type: "move", direction: move, playerId }));
+        let move = {
+          x: targetX,
+          y: targetY,
+        };
+
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "move", position: move, playerId }));
+          lastMoveSent = currentTime;
         }
       }
 
@@ -409,6 +444,9 @@
       function touchMoved() {
         if (gameState !== "playing" || !playerId || !isDragging) return false;
 
+        let currentTime = millis();
+        if (currentTime - lastMoveSent < moveSendInterval) return false;
+
         let touch = touches.find((t) => t.id === touchId);
         if (!touch) return false;
 
@@ -423,30 +461,28 @@
           playerId === 1 ? 0.4 : 1 - paddleHeight
         );
 
-        let move = {
-          x: touchX - paddle.x,
-          y: touchY - paddle.y,
-        };
-
+        // Локальное предсказание
         paddle.x = touchX;
         paddle.y = touchY;
+        paddle.targetX = touchX;
+        paddle.targetY = touchY;
 
-        if (Math.abs(move.x) > 0.0001 || Math.abs(move.y) > 0.0001) {
-          ws.send(JSON.stringify({ type: "move", direction: move, playerId }));
+        let move = {
+          x: touchX,
+          y: touchY,
+        };
+
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "move", position: move, playerId }));
+          lastMoveSent = currentTime;
         }
 
         return false;
       }
 
       function touchEnded() {
-        if (gameState !== "playing" || !playerId) return false;
-
-        let touch = touches.find((t) => t.id === touchId);
-        if (!touch) {
-          isDragging = false;
-          touchId = null;
-        }
-
+        isDragging = false;
+        touchId = null;
         return false;
       }
 
