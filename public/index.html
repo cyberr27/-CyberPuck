@@ -176,9 +176,11 @@
               targetY: data.paddle2.y,
             };
             ball = data.ball || ball;
-            document.getElementById(
-              "status"
-            ).innerText = `Счёт: ${paddle1.score} - ${paddle2.score}`;
+            // Отображаем счёт в порядке, соответствующем игроку
+            document.getElementById("status").innerText =
+              playerId === 2
+                ? `Счёт: ${paddle2.score} - ${paddle1.score}`
+                : `Счёт: ${paddle1.score} - ${paddle2.score}`;
             document.getElementById(
               "server"
             ).innerText = `Подача: Игрок ${servingPlayer}`;
@@ -225,9 +227,10 @@
                 "status"
               ).innerText = `Фол! Подача переходит к Игроку ${servingPlayer}`;
               setTimeout(() => {
-                document.getElementById(
-                  "status"
-                ).innerText = `Счёт: ${paddle1.score} - ${paddle2.score}`;
+                document.getElementById("status").innerText =
+                  playerId === 2
+                    ? `Счёт: ${paddle2.score} - ${paddle1.score}`
+                    : `Счёт: ${paddle1.score} - ${paddle2.score}`;
               }, 2000);
             }
             document.getElementById(
@@ -277,14 +280,24 @@
 
       function draw() {
         push();
+
+        // Применяем трансформацию для игрока 2
+        if (playerId === 2) {
+          translate(0, height);
+          scale(1, -1); // Переворачиваем по оси Y
+        }
+
+        // Встряска стола (применяется после трансформации)
         translate(tableShake.x, tableShake.y);
         background(13, 13, 26, 200);
 
+        // Отрисовка границ поля
         stroke(255, 0, 122);
         strokeWeight(4);
         noFill();
         rect(0, 0, width, height, 20);
 
+        // Отрисовка сетки
         stroke(0, 255, 204, 50);
         strokeWeight(1);
         for (let x = 0; x < width; x += width / 30) {
@@ -294,23 +307,28 @@
           line(0, y, width, y);
         }
 
+        // Отрисовка ворот
         stroke(255, 0, 255, 150);
         strokeWeight(6);
         line(width * 0.25, 0, width * 0.75, 0);
         line(width * 0.25, height, width * 0.75, height);
 
+        // Отрисовка средней линии
         stroke(255, 0, 255, 100);
         strokeWeight(2);
         line(0, height / 2, width, height / 2);
 
+        // Интерполяция позиций бит
         const lerpFactor = 0.2;
         paddle1.x = lerp(paddle1.x, paddle1.targetX, lerpFactor);
         paddle1.y = lerp(paddle1.y, paddle1.targetY, lerpFactor);
         paddle2.x = lerp(paddle2.x, paddle2.targetX, lerpFactor);
         paddle2.y = lerp(paddle2.y, paddle2.targetY, lerpFactor);
 
+        // Отрисовка бит
         noStroke();
         fill(0, 255, 204);
+        // Бита игрока 1
         rect(
           constrain(paddle1.x * width, 0, width - paddleWidth * width),
           constrain(paddle1.y * height, 0, height * 0.4),
@@ -318,6 +336,7 @@
           paddleHeight * height,
           5
         );
+        // Бита игрока 2
         rect(
           constrain(paddle2.x * width, 0, width - paddleWidth * width),
           constrain(
@@ -330,6 +349,7 @@
           5
         );
 
+        // Отрисовка следа шайбы
         for (let i = ballTrail.length - 1; i >= 0; i--) {
           let trail = ballTrail[i];
           let alpha = map(i, 0, ballTrail.length - 1, 20, 100);
@@ -343,6 +363,7 @@
           }
         }
 
+        // Отрисовка шайбы
         fill(255, 0, 122);
         noStroke();
         ellipse(
@@ -354,6 +375,7 @@
 
         pop();
 
+        // Обработка встряски стола
         if (tableShake.duration > 0) {
           tableShake.x *= 0.9;
           tableShake.y *= 0.9;
@@ -380,6 +402,11 @@
         let targetX = mouseX / width;
         let targetY = mouseY / height;
         let paddle = playerId === 1 ? paddle1 : paddle2;
+
+        // Инверсия Y для игрока 2
+        if (playerId === 2) {
+          targetY = 1 - targetY; // Переворачиваем Y относительно высоты холста
+        }
 
         targetX = constrain(targetX, 0, 1 - paddleWidth);
         targetY = constrain(
@@ -421,6 +448,11 @@
 
         let offsetX = 0.1;
         let offsetY = -0.2;
+
+        // Инверсия Y для игрока 2
+        if (playerId === 2) {
+          touchY = 1 - touchY; // Переворачиваем Y относительно высоты холста
+        }
 
         touchX = constrain(touchX + offsetX, 0, 1 - paddleWidth);
         touchY = constrain(
