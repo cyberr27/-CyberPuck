@@ -452,7 +452,7 @@ wss.on("connection", (ws) => {
 setInterval(() => {
   const now = Date.now();
   players = players.filter((player) => {
-    if (now - gameState.lastPing.get(player) > 10000) {
+    if (now - gameState.lastPing.get(player) > 1000000) {
       // 10 секунд
       player.close();
       return false;
