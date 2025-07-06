@@ -34,7 +34,7 @@
         left: 50%;
         transform: translateX(-50%);
         color: #00ffcc;
-        text-shadow: 0 0 10px8755 #00ffcc, 0 0 20px #ff007a;
+        text-shadow: 0 0 10px #00ffcc, 0 0 20px #ff007a;
         font-size: clamp(16px, 2vw, 24px);
         text-align: center;
       }
@@ -118,8 +118,6 @@
       let paddleHeight = 0.0333;
       let tableShake = { x: 0, y: 0, duration: 0 };
       let neonPulse = 0;
-      let isDragging = false;
-      let touchId = null;
       let lastMoveSent = 0;
       const moveSendInterval = 1000 / 30; // Ограничение: 30 сообщений в секунду
 
@@ -188,7 +186,6 @@
             document.getElementById("timer").innerText = formatTime(gameTimer);
             document.getElementById("newGameButton").style.display = "none";
           } else if (data.type === "update") {
-            // Обновляем целевые позиции для интерполяции
             paddle1.targetX = data.paddle1.x;
             paddle1.targetY = data.paddle1.y;
             paddle1.score = data.paddle1.score;
@@ -415,39 +412,16 @@
 
       function touchStarted() {
         if (gameState !== "playing" || !playerId) return false;
-
-        let touch = touches[0];
-        if (!touch) return false;
-
-        let touchX = touch.x / width;
-        let touchY = touch.y / height;
-        let paddle = playerId === 1 ? paddle1 : paddle2;
-
-        let paddleLeft = paddle.x;
-        let paddleRight = paddle.x + paddleWidth;
-        let paddleTop = paddle.y;
-        let paddleBottom = paddle.y + paddleHeight;
-
-        if (
-          touchX >= paddleLeft &&
-          touchX <= paddleRight &&
-          touchY >= paddleTop &&
-          touchY <= paddleBottom
-        ) {
-          isDragging = true;
-          touchId = touch.id;
-        }
-
         return false;
       }
 
       function touchMoved() {
-        if (gameState !== "playing" || !playerId || !isDragging) return false;
+        if (gameState !== "playing" || !playerId) return false;
 
         let currentTime = millis();
         if (currentTime - lastMoveSent < moveSendInterval) return false;
 
-        let touch = touches.find((t) => t.id === touchId);
+        let touch = touches[0];
         if (!touch) return false;
 
         let touchX = touch.x / width;
@@ -481,8 +455,6 @@
       }
 
       function touchEnded() {
-        isDragging = false;
-        touchId = null;
         return false;
       }
 
