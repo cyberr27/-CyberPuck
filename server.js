@@ -71,7 +71,7 @@ function updateGame() {
     let winner;
     if (gameState.paddle1.score > gameState.paddle2.score) {
       winner = 1;
-    } else if (gameState.paddle2.score > gameState.paddle1.score) {
+    } else if (gameState.paddle2.score < gameState.paddle1.score) {
       winner = 2;
     } else {
       winner = "ничья";
@@ -295,8 +295,9 @@ function updateGame() {
   broadcast({
     type: "update",
     paddle1: gameState.paddle1,
+
     paddle2: gameState.paddle2,
-    ball: gameაშState.ball,
+    ball: gameState.ball,
     servingPlayer: gameState.servingPlayer,
     serveTimer: gameState.serveTimer,
     gameTimer: gameState.gameTimer,
