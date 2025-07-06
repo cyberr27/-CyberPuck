@@ -428,9 +428,12 @@
         let touchY = touch.y / height;
         let paddle = playerId === 1 ? paddle1 : paddle2;
 
+        // Смещение ракетки вверх для видимости на мобильных устройствах
+        let offsetY = -0.05; // Смещаем ракетку на 0.05 единиц вверх
+
         touchX = constrain(touchX, 0, 1 - paddleWidth);
         touchY = constrain(
-          touchY,
+          touchY + offsetY, // Применяем смещение
           playerId === 1 ? 0 : 0.6,
           playerId === 1 ? 0.4 : 1 - paddleHeight
         );
