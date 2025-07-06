@@ -429,7 +429,7 @@
         let paddle = playerId === 1 ? paddle1 : paddle2;
 
         // Смещение ракетки вверх и вправо для видимости на мобильных устройствах
-        let offsetX = 0.05; // Смещение вправо
+        let offsetX = 0.15; // Смещение вправо
         let offsetY = -0.2; // Смещение вверх (оставляем как было)
 
         touchX = constrain(touchX + offsetX, 0, 1 - paddleWidth);
