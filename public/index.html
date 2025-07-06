@@ -81,7 +81,7 @@
   <body>
     <div id="status">Ожидание второго игрока...</div>
     <div id="server">Подача: Игрок 1</div>
-    <div id="timer">03:00</div>
+    <div id="timer">05:00</div>
     <button id="newGameButton" onclick="requestNewGame()">Новая игра</button>
     <script>
       let ws;
@@ -108,7 +108,7 @@
       let gameState = "waiting";
       let servingPlayer = 1;
       let serveTimer = 7;
-      let gameTimer = 180;
+      let gameTimer = 300; // Изменено на 5 минут
       let ballTrail = [];
       let hitSound, strongHitSound, tableSound, goalSound, backgroundMusic;
       let canvasWidth = 900;
@@ -118,7 +118,7 @@
       let tableShake = { x: 0, y: 0, duration: 0 };
       let neonPulse = 0;
       let lastMoveSent = 0;
-      const moveSendInterval = 1000 / 30; // Ограничение: 30 сообщений в секунду
+      const moveSendInterval = 1000 / 30;
 
       function preload() {
         hitSound = loadSound("/sounds/hit.mp3");
@@ -236,9 +236,11 @@
             document.getElementById("timer").innerText = formatTime(gameTimer);
           } else if (data.type === "gameOver") {
             gameState = "gameOver";
-            document.getElementById(
-              "status"
-            ).innerText = `Игра окончена! Победил игрок ${data.winner}!`;
+            let statusText =
+              data.winner === "ничья"
+                ? `Игра окончена! Ничья! Финальный счёт: ${data.finalScore}`
+                : `Игра окончена! Победил игрок ${data.winner}! Финальный счёт: ${data.finalScore}`;
+            document.getElementById("status").innerText = statusText;
             document.getElementById("server").innerText = "";
             document.getElementById("timer").innerText = "";
             document.getElementById("newGameButton").style.display = "block";
@@ -278,13 +280,11 @@
         translate(tableShake.x, tableShake.y);
         background(13, 13, 26, 200);
 
-        // Рисуем поле с закруглёнными углами
         stroke(255, 0, 122);
         strokeWeight(4);
         noFill();
         rect(0, 0, width, height, 20);
 
-        // Линии поля
         stroke(0, 255, 204, 50);
         strokeWeight(1);
         for (let x = 0; x < width; x += width / 30) {
@@ -303,14 +303,12 @@
         strokeWeight(2);
         line(0, height / 2, width, height / 2);
 
-        // Интерполяция позиций ракеток
-        const lerpFactor = 0.2; // Скорость интерполяции
+        const lerpFactor = 0.2;
         paddle1.x = lerp(paddle1.x, paddle1.targetX, lerpFactor);
         paddle1.y = lerp(paddle1.y, paddle1.targetY, lerpFactor);
         paddle2.x = lerp(paddle2.x, paddle2.targetX, lerpFactor);
         paddle2.y = lerp(paddle2.y, paddle2.targetY, lerpFactor);
 
-        // Рисуем ракетки
         noStroke();
         fill(0, 255, 204);
         rect(
@@ -332,7 +330,6 @@
           5
         );
 
-        // Рисуем след мяча
         for (let i = ballTrail.length - 1; i >= 0; i--) {
           let trail = ballTrail[i];
           let alpha = map(i, 0, ballTrail.length - 1, 20, 100);
@@ -346,7 +343,6 @@
           }
         }
 
-        // Рисуем мяч
         fill(255, 0, 122);
         noStroke();
         ellipse(
@@ -392,16 +388,12 @@
           playerId === 1 ? 0.4 : 1 - paddleHeight
         );
 
-        // Локальное предсказание
         paddle.x = targetX;
         paddle.y = targetY;
         paddle.targetX = targetX;
         paddle.targetY = targetY;
 
-        let move = {
-          x: targetX,
-          y: targetY,
-        };
+        let move = { x: targetX, y: targetY };
 
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: "move", position: move, playerId }));
@@ -427,9 +419,8 @@
         let touchY = touch.y / height;
         let paddle = playerId === 1 ? paddle1 : paddle2;
 
-        // Смещение ракетки вверх и вправо для видимости на мобильных устройствах
-        let offsetX = 0.1; // Смещение вправо
-        let offsetY = -0.2; // Смещение вверх (оставляем как было)
+        let offsetX = 0.1;
+        let offsetY = -0.2;
 
         touchX = constrain(touchX + offsetX, 0, 1 - paddleWidth);
         touchY = constrain(
@@ -438,16 +429,12 @@
           playerId === 1 ? 0.4 : 1 - paddleHeight
         );
 
-        // Локальное предсказание
         paddle.x = touchX;
         paddle.y = touchY;
         paddle.targetX = touchX;
         paddle.targetY = touchY;
 
-        let move = {
-          x: touchX,
-          y: touchY,
-        };
+        let move = { x: touchX, y: touchY };
 
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: "move", position: move, playerId }));

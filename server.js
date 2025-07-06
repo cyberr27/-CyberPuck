@@ -54,7 +54,7 @@ let gameState = {
   status: "waiting",
   servingPlayer: 1,
   serveTimer: 7,
-  gameTimer: 180,
+  gameTimer: 300, // Изменено на 5 минут (300 секунд)
   lastHitPlayer: null,
   hitTimer: 7,
   lastPing: new Map(),
@@ -68,8 +68,19 @@ function updateGame() {
     gameState.gameTimer -= 1 / 60;
   } else {
     gameState.status = "gameOver";
-    const winner = gameState.paddle1.score > gameState.paddle2.score ? 1 : 2;
-    broadcast({ type: "gameOver", winner });
+    let winner;
+    if (gameState.paddle1.score > gameState.paddle2.score) {
+      winner = 1;
+    } else if (gameState.paddle2.score > gameState.paddle1.score) {
+      winner = 2;
+    } else {
+      winner = "ничья";
+    }
+    broadcast({
+      type: "gameOver",
+      winner,
+      finalScore: `${gameState.paddle1.score} - ${gameState.paddle2.score}`,
+    });
     return;
   }
 
@@ -281,19 +292,11 @@ function updateGame() {
     }
   }
 
-  if (gameState.paddle1.score >= 7) {
-    gameState.status = "gameOver";
-    broadcast({ type: "gameOver", winner: 1 });
-  } else if (gameState.paddle2.score >= 7) {
-    gameState.status = "gameOver";
-    broadcast({ type: "gameOver", winner: 2 });
-  }
-
   broadcast({
     type: "update",
     paddle1: gameState.paddle1,
     paddle2: gameState.paddle2,
-    ball: gameState.ball,
+    ball: gameაშState.ball,
     servingPlayer: gameState.servingPlayer,
     serveTimer: gameState.serveTimer,
     gameTimer: gameState.gameTimer,
@@ -323,7 +326,7 @@ function startGame() {
   gameState.paddle2 = { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0 };
   gameState.servingPlayer = Math.random() < 0.5 ? 1 : 2;
   gameState.serveTimer = 7;
-  gameState.gameTimer = 180;
+  gameState.gameTimer = 300; // Изменено на 5 минут
   gameState.lastHitPlayer = null;
   gameState.hitTimer = 7;
   resetBall(true);
@@ -348,7 +351,7 @@ function resetGame() {
   gameState.status = "waiting";
   gameState.servingPlayer = Math.random() < 0.5 ? 1 : 2;
   gameState.serveTimer = 7;
-  gameState.gameTimer = 180;
+  gameState.gameTimer = 300; // Изменено на 5 минут
   gameState.lastHitPlayer = null;
   gameState.hitTimer = 7;
   gameState.newGameRequests.clear();
@@ -402,14 +405,12 @@ wss.on("connection", (ws) => {
         const paddle =
           data.playerId === 1 ? gameState.paddle1 : gameState.paddle2;
 
-        // Обновляем позицию с учетом ограничений
         paddle.x = constrain(position.x, 0, 1 - 0.0667);
         paddle.y = constrain(
           position.y,
           data.playerId === 1 ? 0 : 0.6,
           data.playerId === 1 ? 0.4 : 1 - 0.0333
         );
-        // Скорость рассчитываем для физики столкновений
         paddle.vx = position.x - paddle.x;
         paddle.vy = position.y - paddle.y;
       } else if (data.type === "newGame" && gameState.status === "gameOver") {
@@ -450,8 +451,8 @@ wss.on("connection", (ws) => {
 setInterval(() => {
   const now = Date.now();
   players = players.filter((player) => {
-    if (now - gameState.lastPing.get(player) > 10000000) {
-      // Уменьшено до 10 секунд
+    if (now - gameState.lastPing.get(player) > 10000) {
+      // 10 секунд
       player.close();
       return false;
     }
