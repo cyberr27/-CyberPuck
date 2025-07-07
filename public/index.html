@@ -88,16 +88,16 @@
       let playerId = null;
       let paddle1 = {
         x: 0.5,
-        y: 0.0667,
+        y: 0.9333, // Ракетка игрока 1 теперь внизу
         score: 0,
         vx: 0,
         vy: 0,
         targetX: 0.5,
-        targetY: 0.0667,
+        targetY: 0.9333,
       };
       let paddle2 = {
         x: 0.5,
-        y: 0.9333,
+        y: 0.9333, // Ракетка игрока 2 внизу (в его координатах)
         score: 0,
         vx: 0,
         vy: 0,
@@ -108,7 +108,7 @@
       let gameState = "waiting";
       let servingPlayer = 1;
       let serveTimer = 7;
-      let gameTimer = 300; // Изменено на 5 минут
+      let gameTimer = 300;
       let ballTrail = [];
       let hitSound, strongHitSound, tableSound, goalSound, backgroundMusic;
       let canvasWidth = 900;
@@ -176,7 +176,6 @@
               targetY: data.paddle2.y,
             };
             ball = data.ball || ball;
-            // Отображаем счёт в порядке, соответствующем игроку
             document.getElementById("status").innerText =
               playerId === 2
                 ? `Счёт: ${paddle2.score} - ${paddle1.score}`
@@ -287,7 +286,7 @@
           scale(1, -1); // Переворачиваем по оси Y
         }
 
-        // Встряска стола (применяется после трансформации)
+        // Встряска стола
         translate(tableShake.x, tableShake.y);
         background(13, 13, 26, 200);
 
@@ -328,15 +327,19 @@
         // Отрисовка бит
         noStroke();
         fill(0, 255, 204);
-        // Бита игрока 1
+        // Бита игрока 1 (внизу)
         rect(
           constrain(paddle1.x * width, 0, width - paddleWidth * width),
-          constrain(paddle1.y * height, 0, height * 0.4),
+          constrain(
+            paddle1.y * height,
+            height * 0.6,
+            height - paddleHeight * height
+          ),
           paddleWidth * width,
           paddleHeight * height,
           5
         );
-        // Бита игрока 2
+        // Бита игрока 2 (внизу с его перспективы)
         rect(
           constrain(paddle2.x * width, 0, width - paddleWidth * width),
           constrain(
@@ -405,15 +408,11 @@
 
         // Инверсия Y для игрока 2
         if (playerId === 2) {
-          targetY = 1 - targetY; // Переворачиваем Y относительно высоты холста
+          targetY = 1 - targetY;
         }
 
         targetX = constrain(targetX, 0, 1 - paddleWidth);
-        targetY = constrain(
-          targetY,
-          playerId === 1 ? 0 : 0.6,
-          playerId === 1 ? 0.4 : 1 - paddleHeight
-        );
+        targetY = constrain(targetY, 0.6, 1 - paddleHeight);
 
         paddle.x = targetX;
         paddle.y = targetY;
@@ -449,17 +448,12 @@
         let offsetX = 0.1;
         let offsetY = -0.2;
 
-        // Инверсия Y для игрока 2
         if (playerId === 2) {
-          touchY = 1 - touchY; // Переворачиваем Y относительно высоты холста
+          touchY = 1 - touchY;
         }
 
         touchX = constrain(touchX + offsetX, 0, 1 - paddleWidth);
-        touchY = constrain(
-          touchY + offsetY,
-          playerId === 1 ? 0 : 0.6,
-          playerId === 1 ? 0.4 : 1 - paddleHeight
-        );
+        touchY = constrain(touchY + offsetY, 0.6, 1 - paddleHeight);
 
         paddle.x = touchX;
         paddle.y = touchY;
