@@ -399,20 +399,46 @@ wss.on("connection", (ws) => {
       if (
         data.type === "move" &&
         gameState.status === "playing" &&
-        data.playerId
+        data.playerId &&
+        data.position
       ) {
         const position = data.position;
         const paddle =
           data.playerId === 1 ? gameState.paddle1 : gameState.paddle2;
 
+        // Проверяем, что игрок управляет только своей ракеткой
+        if (
+          (data.playerId === 1 && paddle !== gameState.paddle1) ||
+          (data.playerId === 2 && paddle !== gameState.paddle2)
+        ) {
+          console.error(
+            `Игрок ${data.playerId} пытается управлять чужой ракеткой!`
+          );
+          return;
+        }
+
+        // Ограничиваем координаты
+        const prevX = paddle.x;
+        const prevY = paddle.y;
         paddle.x = constrain(position.x, 0, 1 - 0.0667);
         paddle.y = constrain(
           position.y,
           data.playerId === 1 ? 0.6 : 0,
           data.playerId === 1 ? 1 - 0.0333 : 0.4
         );
-        paddle.vx = position.x - paddle.x;
-        paddle.vy = position.y - paddle.y;
+        paddle.vx = paddle.x - prevX;
+        paddle.vy = paddle.y - prevY;
+
+        // Отправляем обновление всем клиентам
+        broadcast({
+          type: "update",
+          paddle1: gameState.paddle1,
+          paddle2: gameState.paddle2,
+          ball: gameState.ball,
+          servingPlayer: gameState.servingPlayer,
+          serveTimer: gameState.serveTimer,
+          gameTimer: gameState.gameTimer,
+        });
       } else if (data.type === "newGame" && gameState.status === "gameOver") {
         gameState.newGameRequests.add(ws.playerId);
         if (gameState.newGameRequests.size === 2) {

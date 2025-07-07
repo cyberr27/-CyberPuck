@@ -387,12 +387,12 @@
 
         let targetX = mouseX / width;
         let targetY = mouseY / height;
-        let paddle = playerId === 1 ? paddle1 : paddle2;
 
         if (playerId === 2) {
-          targetY = 1 - targetY;
+          targetY = 1 - targetY; // Инверсия Y для игрока 2
         }
 
+        // Ограничиваем координаты в зависимости от игрока
         targetX = constrain(targetX, 0, 1 - paddleWidth);
         targetY = constrain(
           targetY,
@@ -400,15 +400,15 @@
           playerId === 1 ? 1 - paddleHeight : 0.4
         );
 
-        paddle.x = targetX;
-        paddle.y = targetY;
-        paddle.targetX = targetX;
-        paddle.targetY = targetY;
-
-        let move = { x: targetX, y: targetY };
-
+        // Отправляем позицию на сервер, но не обновляем локально
         if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: "move", position: move, playerId }));
+          ws.send(
+            JSON.stringify({
+              type: "move",
+              position: { x: targetX, y: targetY },
+              playerId,
+            })
+          );
           lastMoveSent = currentTime;
         }
       }
@@ -429,13 +429,12 @@
 
         let touchX = touch.x / width;
         let touchY = touch.y / height;
-        let paddle = playerId === 1 ? paddle1 : paddle2;
 
         let offsetX = 0.1;
-        let offsetY = playerId === 1 ? -0.2 : 0.2; // Инверсия смещения для игрока 2
+        let offsetY = playerId === 1 ? -0.2 : 0.2;
 
         if (playerId === 2) {
-          touchY = 1 - touchY; // Инверсия Y-координаты для игрока 2
+          touchY = 1 - touchY; // Инверсия Y для игрока 2
         }
 
         touchX = constrain(touchX + offsetX, 0, 1 - paddleWidth);
@@ -445,15 +444,15 @@
           playerId === 1 ? 1 - paddleHeight : 0.4
         );
 
-        paddle.x = touchX;
-        paddle.y = touchY;
-        paddle.targetX = touchX;
-        paddle.targetY = touchY;
-
-        let move = { x: touchX, y: touchY };
-
+        // Отправляем позицию на сервер
         if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: "move", position: move, playerId }));
+          ws.send(
+            JSON.stringify({
+              type: "move",
+              position: { x: touchX, y: touchY },
+              playerId,
+            })
+          );
           lastMoveSent = currentTime;
         }
 
