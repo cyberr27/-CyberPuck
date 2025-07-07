@@ -432,13 +432,13 @@
         let paddle = playerId === 1 ? paddle1 : paddle2;
 
         let offsetX = 0.1;
-        let offsetY = -0.2;
+        let offsetY = playerId === 1 ? -0.2 : 0.2; // Инверсия смещения для игрока 2
 
         if (playerId === 2) {
-          touchY = 1 - touchY;
+          touchY = 1 - touchY; // Инверсия Y-координаты для игрока 2
         }
 
-        (touchX = touchX + offsetX), 0, 1 - paddleWidth;
+        touchX = constrain(touchX + offsetX, 0, 1 - paddleWidth);
         touchY = constrain(
           touchY + offsetY,
           playerId === 1 ? 0.6 : 0,
