@@ -48,13 +48,13 @@ function normalizeSpeed(dx, dy, targetSpeed) {
 
 let players = [];
 let gameState = {
-  paddle1: { x: 0.5, y: 0.0667, score: 0, vx: 0, vy: 0 },
-  paddle2: { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0 },
+  paddle1: { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0 },
+  paddle2: { x: 0.5, y: 0.0667, score: 0, vx: 0, vy: 0 },
   ball: { x: 0.5, y: 0.5, dx: 0, dy: 0 },
   status: "waiting",
   servingPlayer: 1,
   serveTimer: 7,
-  gameTimer: 300, // Изменено на 5 минут (300 секунд)
+  gameTimer: 300,
   lastHitPlayer: null,
   hitTimer: 7,
   lastPing: new Map(),
@@ -105,7 +105,7 @@ function updateGame() {
       gameState.servingPlayer === 1
         ? gameState.paddle1.x + 0.0333
         : gameState.paddle2.x + 0.0333;
-    gameState.ball.y = gameState.servingPlayer === 1 ? 0.1 : 0.9;
+    gameState.ball.y = gameState.servingPlayer === 1 ? 0.9 : 0.1;
   } else {
     gameState.hitTimer -= 1 / 60;
     if (gameState.hitTimer <= 0) {
@@ -153,24 +153,6 @@ function updateGame() {
     gameState.ball.x >= 0.25 &&
     gameState.ball.x <= 0.75
   ) {
-    gameState.paddle2.score += 1;
-    gameState.servingPlayer = 1;
-    resetBall(false);
-    broadcast({
-      type: "update",
-      paddle1: gameState.paddle1,
-      paddle2: gameState.paddle2,
-      ball: gameState.ball,
-      servingPlayer: gameState.servingPlayer,
-      serveTimer: gameState.serveTimer,
-      gameTimer: gameState.gameTimer,
-      goal: 2,
-    });
-  } else if (
-    gameState.ball.y > 1 - 0.01 &&
-    gameState.ball.x >= 0.25 &&
-    gameState.ball.x <= 0.75
-  ) {
     gameState.paddle1.score += 1;
     gameState.servingPlayer = 2;
     resetBall(false);
@@ -183,6 +165,24 @@ function updateGame() {
       serveTimer: gameState.serveTimer,
       gameTimer: gameState.gameTimer,
       goal: 1,
+    });
+  } else if (
+    gameState.ball.y > 1 - 0.01 &&
+    gameState.ball.x >= 0.25 &&
+    gameState.ball.x <= 0.75
+  ) {
+    gameState.paddle2.score += 1;
+    gameState.servingPlayer = 1;
+    resetBall(false);
+    broadcast({
+      type: "update",
+      paddle1: gameState.paddle1,
+      paddle2: gameState.paddle2,
+      ball: gameState.ball,
+      servingPlayer: gameState.servingPlayer,
+      serveTimer: gameState.serveTimer,
+      gameTimer: gameState.gameTimer,
+      goal: 2,
     });
   } else if (gameState.ball.y <= 0.01 || gameState.ball.y >= 1 - 0.01) {
     gameState.ball.dy *= -1;
@@ -214,7 +214,7 @@ function updateGame() {
     ) {
       const speed = baseSpeed;
       gameState.ball.dx = hitPos * 0.004 + gameState.paddle1.vx * 0.5;
-      gameState.ball.dy = speed;
+      gameState.ball.dy = -speed;
       const normalized = normalizeSpeed(
         gameState.ball.dx,
         gameState.ball.dy,
@@ -222,7 +222,7 @@ function updateGame() {
       );
       gameState.ball.dx = normalized.dx;
       gameState.ball.dy = normalized.dy;
-      gameState.ball.y = gameState.paddle1.y + paddleHeight + ballRadius;
+      gameState.ball.y = gameState.paddle1.y - ballRadius;
       gameState.lastHitPlayer = 1;
       gameState.serveTimer = 7;
       gameState.hitTimer = 7;
@@ -230,7 +230,7 @@ function updateGame() {
     } else {
       const speed = Math.min(collision1.speed * 0.8 + baseSpeed, maxSpeed);
       gameState.ball.dx = hitPos * 0.004 + gameState.paddle1.vx * 0.5;
-      gameState.ball.dy = Math.abs(gameState.ball.dy) * 0.8 + baseSpeed;
+      gameState.ball.dy = -Math.abs(gameState.ball.dy) * 0.8 - baseSpeed;
       const normalized = normalizeSpeed(
         gameState.ball.dx,
         gameState.ball.dy,
@@ -238,7 +238,7 @@ function updateGame() {
       );
       gameState.ball.dx = normalized.dx;
       gameState.ball.dy = normalized.dy;
-      gameState.ball.y = gameState.paddle1.y + paddleHeight + ballRadius;
+      gameState.ball.y = gameState.paddle1.y - ballRadius;
       gameState.lastHitPlayer = 1;
       gameState.hitTimer = 7;
       hit = true;
@@ -261,7 +261,7 @@ function updateGame() {
     ) {
       const speed = baseSpeed;
       gameState.ball.dx = hitPos * 0.004 + gameState.paddle2.vx * 0.5;
-      gameState.ball.dy = -speed;
+      gameState.ball.dy = speed;
       const normalized = normalizeSpeed(
         gameState.ball.dx,
         gameState.ball.dy,
@@ -269,7 +269,7 @@ function updateGame() {
       );
       gameState.ball.dx = normalized.dx;
       gameState.ball.dy = normalized.dy;
-      gameState.ball.y = gameState.paddle2.y - ballRadius;
+      gameState.ball.y = gameState.paddle2.y + paddleHeight + ballRadius;
       gameState.lastHitPlayer = 2;
       gameState.serveTimer = 7;
       gameState.hitTimer = 7;
@@ -277,7 +277,7 @@ function updateGame() {
     } else {
       const speed = Math.min(collision2.speed * 0.8 + baseSpeed, maxSpeed);
       gameState.ball.dx = hitPos * 0.004 + gameState.paddle2.vx * 0.5;
-      gameState.ball.dy = -Math.abs(gameState.ball.dy) * 0.8 - baseSpeed;
+      gameState.ball.dy = Math.abs(gameState.ball.dy) * 0.8 + baseSpeed;
       const normalized = normalizeSpeed(
         gameState.ball.dx,
         gameState.ball.dy,
@@ -285,7 +285,7 @@ function updateGame() {
       );
       gameState.ball.dx = normalized.dx;
       gameState.ball.dy = normalized.dy;
-      gameState.ball.y = gameState.paddle2.y - ballRadius;
+      gameState.ball.y = gameState.paddle2.y + paddleHeight + ballRadius;
       gameState.lastHitPlayer = 2;
       gameState.hitTimer = 7;
       hit = true;
@@ -295,7 +295,6 @@ function updateGame() {
   broadcast({
     type: "update",
     paddle1: gameState.paddle1,
-
     paddle2: gameState.paddle2,
     ball: gameState.ball,
     servingPlayer: gameState.servingPlayer,
@@ -323,11 +322,11 @@ function broadcast(data) {
 
 function startGame() {
   gameState.status = "playing";
-  gameState.paddle1 = { x: 0.5, y: 0.0667, score: 0, vx: 0, vy: 0 };
-  gameState.paddle2 = { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0 };
+  gameState.paddle1 = { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0 };
+  gameState.paddle2 = { x: 0.5, y: 0.0667, score: 0, vx: 0, vy: 0 };
   gameState.servingPlayer = Math.random() < 0.5 ? 1 : 2;
   gameState.serveTimer = 7;
-  gameState.gameTimer = 300; // Изменено на 5 минут
+  gameState.gameTimer = 300;
   gameState.lastHitPlayer = null;
   gameState.hitTimer = 7;
   resetBall(true);
@@ -346,13 +345,13 @@ function startGame() {
 }
 
 function resetGame() {
-  gameState.paddle1 = { x: 0.5, y: 0.0667, score: 0, vx: 0, vy: 0 };
-  gameState.paddle2 = { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0 };
+  gameState.paddle1 = { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0 };
+  gameState.paddle2 = { x: 0.5, y: 0.0667, score: 0, vx: 0, vy: 0 };
   gameState.ball = { x: 0.5, y: 0.5, dx: 0, dy: 0 };
   gameState.status = "waiting";
   gameState.servingPlayer = Math.random() < 0.5 ? 1 : 2;
   gameState.serveTimer = 7;
-  gameState.gameTimer = 300; // Изменено на 5 минут
+  gameState.gameTimer = 300;
   gameState.lastHitPlayer = null;
   gameState.hitTimer = 7;
   gameState.newGameRequests.clear();
@@ -363,7 +362,7 @@ function resetBall(isNewGame) {
     gameState.servingPlayer === 1
       ? gameState.paddle1.x + 0.0333
       : gameState.paddle2.x + 0.0333;
-  gameState.ball.y = gameState.servingPlayer === 1 ? 0.1 : 0.9;
+  gameState.ball.y = gameState.servingPlayer === 1 ? 0.9 : 0.1;
   gameState.ball.dx = 0;
   gameState.ball.dy = 0;
   gameState.serveTimer = 7;
@@ -409,8 +408,8 @@ wss.on("connection", (ws) => {
         paddle.x = constrain(position.x, 0, 1 - 0.0667);
         paddle.y = constrain(
           position.y,
-          data.playerId === 1 ? 0 : 0.6,
-          data.playerId === 1 ? 0.4 : 1 - 0.0333
+          data.playerId === 1 ? 0.6 : 0,
+          data.playerId === 1 ? 1 - 0.0333 : 0.4
         );
         paddle.vx = position.x - paddle.x;
         paddle.vy = position.y - paddle.y;
@@ -452,8 +451,7 @@ wss.on("connection", (ws) => {
 setInterval(() => {
   const now = Date.now();
   players = players.filter((player) => {
-    if (now - gameState.lastPing.get(player) > 10000000) {
-      // 10 секунд
+    if (now - gameState.lastPing.get(player) > 1000000) {
       player.close();
       return false;
     }
