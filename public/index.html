@@ -76,6 +76,22 @@
         color: #0d0d1a;
         text-shadow: none;
       }
+      body.player2 #status {
+        top: auto;
+        bottom: 10px;
+      }
+      body.player2 #server {
+        top: auto;
+        bottom: 40px;
+      }
+      body.player2 #timer {
+        top: auto;
+        bottom: 60px;
+      }
+      body.player2 #newGameButton {
+        top: auto;
+        bottom: 90px;
+      }
     </style>
   </head>
   <body>
@@ -157,6 +173,10 @@
           const data = JSON.parse(event.data);
           if (data.type === "init") {
             playerId = data.playerId;
+            // Добавляем класс player2 для игрока 2
+            if (playerId === 2) {
+              document.body.classList.add("player2");
+            }
             document.getElementById(
               "status"
             ).innerText = `Вы игрок ${playerId}. Ожидание второго игрока...`;
@@ -279,25 +299,17 @@
       }
 
       function draw() {
+        background(13, 13, 26, 200);
         push();
-
-        // Применяем трансформацию для игрока 2
         if (playerId === 2) {
           translate(0, height);
-          scale(1, -1); // Переворачиваем по оси Y
+          scale(1, -1);
         }
-
-        // Встряска стола (применяется после трансформации)
         translate(tableShake.x, tableShake.y);
-        background(13, 13, 26, 200);
-
-        // Отрисовка границ поля
         stroke(255, 0, 122);
         strokeWeight(4);
         noFill();
         rect(0, 0, width, height, 20);
-
-        // Отрисовка сетки
         stroke(0, 255, 204, 50);
         strokeWeight(1);
         for (let x = 0; x < width; x += width / 30) {
@@ -306,29 +318,20 @@
         for (let y = 0; y < height; y += height / 20) {
           line(0, y, width, y);
         }
-
-        // Отрисовка ворот
         stroke(255, 0, 255, 150);
         strokeWeight(6);
         line(width * 0.25, 0, width * 0.75, 0);
         line(width * 0.25, height, width * 0.75, height);
-
-        // Отрисовка средней линии
         stroke(255, 0, 255, 100);
         strokeWeight(2);
         line(0, height / 2, width, height / 2);
-
-        // Интерполяция позиций бит
         const lerpFactor = 0.2;
         paddle1.x = lerp(paddle1.x, paddle1.targetX, lerpFactor);
         paddle1.y = lerp(paddle1.y, paddle1.targetY, lerpFactor);
         paddle2.x = lerp(paddle2.x, paddle2.targetX, lerpFactor);
         paddle2.y = lerp(paddle2.y, paddle2.targetY, lerpFactor);
-
-        // Отрисовка бит
         noStroke();
         fill(0, 255, 204);
-        // Бита игрока 1
         rect(
           constrain(paddle1.x * width, 0, width - paddleWidth * width),
           constrain(paddle1.y * height, 0, height * 0.4),
@@ -336,7 +339,6 @@
           paddleHeight * height,
           5
         );
-        // Бита игрока 2
         rect(
           constrain(paddle2.x * width, 0, width - paddleWidth * width),
           constrain(
@@ -348,8 +350,6 @@
           paddleHeight * height,
           5
         );
-
-        // Отрисовка следа шайбы
         for (let i = ballTrail.length - 1; i >= 0; i--) {
           let trail = ballTrail[i];
           let alpha = map(i, 0, ballTrail.length - 1, 20, 100);
@@ -362,8 +362,6 @@
             ballTrail.splice(i, 1);
           }
         }
-
-        // Отрисовка шайбы
         fill(255, 0, 122);
         noStroke();
         ellipse(
@@ -372,10 +370,7 @@
           width * 0.02,
           width * 0.02
         );
-
         pop();
-
-        // Обработка встряски стола
         if (tableShake.duration > 0) {
           tableShake.x *= 0.9;
           tableShake.y *= 0.9;
