@@ -78,7 +78,7 @@
       }
       #fullscreenButton {
         position: absolute;
-        top: 120px; /* Сдвинем ниже, чтобы не перекрывать другие элементы */
+        top: 120px;
         left: 50%;
         transform: translateX(-50%);
         padding: 10px 20px;
@@ -90,16 +90,13 @@
         text-shadow: 0 0 5px #ff007a;
         box-shadow: 0 0 10px #00ffcc;
         cursor: pointer;
-        display: none; /* Скрываем по умолчанию */
+        display: none;
       }
-
       #fullscreenButton:hover {
         background: #00ffcc;
         color: #0d0d1a;
         text-shadow: none;
       }
-
-      /* Показываем кнопку только на мобильных устройствах */
       @media screen and (max-width: 768px) {
         #fullscreenButton {
           display: block;
@@ -154,7 +151,7 @@
       let backgroundImg;
 
       function preload() {
-        backgroundImg = loadImage("/img/backgroundImg.jpg"); // Загружаем изображение
+        backgroundImg = loadImage("/img/backgroundImg.jpg");
         hitSound = loadSound("/sounds/hit.mp3");
         strongHitSound = loadSound("/sounds/strong_hit.mp3");
         tableSound = loadSound("/sounds/table.mp3");
@@ -174,11 +171,9 @@
         );
       }
 
-      // Функция для переключения полноэкранного режима
       function toggleFullscreen() {
         const canvas = document.querySelector("canvas");
         if (!document.fullscreenElement) {
-          // Вход в полноэкранный режим
           if (canvas.requestFullscreen) {
             canvas.requestFullscreen().catch((err) => {
               console.error(
@@ -188,13 +183,11 @@
                 "Не удалось включить полноэкранный режим";
             });
           } else if (canvas.webkitRequestFullscreen) {
-            // Для iOS Safari
             canvas.webkitRequestFullscreen();
           }
           document.getElementById("fullscreenButton").innerText =
             "Выйти из полноэкранного режима";
         } else {
-          // Выход из полноэкранного режима
           if (document.exitFullscreen) {
             document.exitFullscreen().catch((err) => {
               console.error(
@@ -202,7 +195,6 @@
               );
             });
           } else if (document.webkitExitFullscreen) {
-            // Для iOS Safari
             document.webkitExitFullscreen();
           }
           document.getElementById("fullscreenButton").innerText =
@@ -381,7 +373,9 @@
           line(0, y, width, y);
         }
 
-        stroke(255, 0, 255, 150);
+        // Мерцающие жёлтые ворота в стиле киберпанк
+        let neonAlpha = map(sin(frameCount * 0.05), -1, 1, 100, 255);
+        stroke(255, 255, 0, neonAlpha);
         strokeWeight(6);
         line(width * 0.25, 0, width * 0.75, 0);
         line(width * 0.25, height, width * 0.75, height);
@@ -397,34 +391,34 @@
         paddle2.y = lerp(paddle2.y, paddle2.targetY, lerpFactor);
 
         noStroke();
-        fill(0, 255, 204);
+        // Ракетка игрока 1 (синяя)
+        fill(0, 102, 255);
         rect(
           constrain(paddle1.x * width, 0, width - paddleWidth * width),
           constrain(
             paddle1.y * height,
-            height * 0.5, // Изменено с 0.6 на 0.5
+            height * 0.5,
             height - paddleHeight * height
           ),
           paddleWidth * width,
           paddleHeight * height,
           5
         );
+        // Ракетка игрока 2 (красная)
+        fill(255, 0, 0);
         rect(
           constrain(paddle2.x * width, 0, width - paddleWidth * width),
-          constrain(
-            paddle2.y * height,
-            0,
-            height * 0.5 // Изменено с 0.4 на 0.5
-          ),
+          constrain(paddle2.y * height, 0, height * 0.5),
           paddleWidth * width,
           paddleHeight * height,
           5
         );
 
+        // Трейл мяча (тёмно-серый с неоновым оттенком)
         for (let i = ballTrail.length - 1; i >= 0; i--) {
           let trail = ballTrail[i];
           let alpha = map(i, 0, ballTrail.length - 1, 20, 100);
-          fill(255, 0, 122, alpha);
+          fill(50, 50, 50, alpha);
           noStroke();
           let trailSize = width * 0.01;
           ellipse(trail.x * width, trail.y * height, trailSize, trailSize);
@@ -434,7 +428,8 @@
           }
         }
 
-        fill(255, 0, 122);
+        // Мяч (очень тёмно-серый)
+        fill(40, 40, 40);
         noStroke();
         ellipse(
           constrain(ball.x * width, width * 0.01, width * (1 - 0.01)),
@@ -458,11 +453,9 @@
       function windowResized() {
         let newWidth, newHeight;
         if (document.fullscreenElement) {
-          // В полноэкранном режиме используем размеры экрана
           newWidth = window.screen.width;
           newHeight = window.screen.height;
         } else {
-          // Обычный режим
           newWidth = min(windowWidth * 0.7, windowHeight * 2 * 0.7);
           newHeight = min(windowHeight * 0.9, newWidth * 0.5);
         }
@@ -470,26 +463,23 @@
         console.log(`Canvas resized to ${newWidth}x${newHeight}`);
       }
 
-      // Показываем кнопку только на мобильных устройствах при загрузке
       function setupFullscreenButton() {
         if (isMobileDevice()) {
           document.getElementById("fullscreenButton").style.display = "block";
         }
       }
 
-      // Вызываем при загрузке
       document.addEventListener("DOMContentLoaded", setupFullscreenButton);
 
-      // Обработчик изменения полноэкранного режима
       document.addEventListener("fullscreenchange", () => {
-        windowResized(); // Перерисовываем канвас при изменении режима
+        windowResized();
         if (!document.fullscreenElement) {
           document.getElementById("fullscreenButton").innerText =
             "Полноэкранный режим";
         }
       });
       document.addEventListener("webkitfullscreenchange", () => {
-        windowResized(); // Поддержка iOS
+        windowResized();
         if (!document.fullscreenElement) {
           document.getElementById("fullscreenButton").innerText =
             "Полноэкранный режим";
@@ -506,18 +496,16 @@
         let targetY = mouseY / height;
 
         if (playerId === 2) {
-          targetY = 1 - targetY; // Инверсия Y для игрока 2
+          targetY = 1 - targetY;
         }
 
-        // Ограничиваем координаты в зависимости от игрока
         targetX = constrain(targetX, 0, 1 - paddleWidth);
         targetY = constrain(
           targetY,
           playerId === 1 ? 0.5 : 0,
-          playerId === 1 ? 1 - paddleHeight : 0.5 - paddleHeight // Строже для игрока 2
+          playerId === 1 ? 1 - paddleHeight : 0.5 - paddleHeight
         );
 
-        // Логирование для отладки
         console.log(
           `Игрок ${playerId}: mouseX=${targetX.toFixed(
             3
@@ -554,17 +542,16 @@
         let touchY = touch.y / height;
 
         if (playerId === 2) {
-          touchY = 1 - touchY; // Инверсия Y для игрока 2
+          touchY = 1 - touchY;
         }
 
         touchX = constrain(touchX, 0, 1 - paddleWidth);
         touchY = constrain(
           touchY,
           playerId === 1 ? 0.5 : 0,
-          playerId === 1 ? 1 - paddleHeight : 0.5 - paddleHeight // Строже для игрока 2
+          playerId === 1 ? 1 - paddleHeight : 0.5 - paddleHeight
         );
 
-        // Логирование для отладки
         console.log(
           `Игрок ${playerId}: touchX=${touchX.toFixed(
             3
@@ -598,7 +585,6 @@
         }
       }
 
-      // Обработчик двойного тапа для выхода из полноэкранного режима
       let lastTouchTime = 0;
       function doubleTap() {
         const currentTime = new Date().getTime();
@@ -611,10 +597,9 @@
         lastTouchTime = currentTime;
       }
 
-      // Добавляем обработчик двойного тапа
       function touchStarted() {
         if (gameState !== "playing" || !playerId) {
-          doubleTap(); // Проверяем двойной тап
+          doubleTap();
           return false;
         }
         return false;
