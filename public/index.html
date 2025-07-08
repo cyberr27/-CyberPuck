@@ -434,21 +434,24 @@
         let touchX = touch.x / width;
         let touchY = touch.y / height;
 
-        let offsetX = 0.1;
-        let offsetY = playerId === 1 ? -0.2 : 0.2;
-
         if (playerId === 2) {
           touchY = 1 - touchY; // Инверсия Y для игрока 2
         }
 
-        touchX = constrain(touchX + offsetX, 0, 1 - paddleWidth);
+        touchX = constrain(touchX, 0, 1 - paddleWidth);
         touchY = constrain(
-          touchY + offsetY,
-          playerId === 1 ? 0.5 : 0, // Изменено с 0.6 на 0.5 для игрока 1
-          playerId === 1 ? 1 - paddleHeight : 0.5 // Изменено с 0.4 на 0.5 для игрока 2
+          touchY,
+          playerId === 1 ? 0.5 : 0,
+          playerId === 1 ? 1 - paddleHeight : 0.5
         );
 
-        // Отправляем позицию на сервер
+        // Логирование для отладки
+        console.log(
+          `Игрок ${playerId}: touchX=${touchX.toFixed(
+            3
+          )}, touchY=${touchY.toFixed(3)}`
+        );
+
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(
             JSON.stringify({

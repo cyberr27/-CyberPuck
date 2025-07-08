@@ -406,7 +406,6 @@ wss.on("connection", (ws) => {
         const paddle =
           data.playerId === 1 ? gameState.paddle1 : gameState.paddle2;
 
-        // Проверяем, что игрок управляет только своей ракеткой
         if (
           (data.playerId === 1 && paddle !== gameState.paddle1) ||
           (data.playerId === 2 && paddle !== gameState.paddle2)
@@ -417,19 +416,37 @@ wss.on("connection", (ws) => {
           return;
         }
 
-        // Ограничиваем координаты
+        // Дополнительная проверка координат
+        if (
+          data.playerId === 1 &&
+          (position.y < 0.5 || position.y > 1 - 0.0333)
+        ) {
+          console.warn(`Игрок 1 отправил некорректный y: ${position.y}`);
+          return;
+        }
+        if (data.playerId === 2 && (position.y < 0 || position.y > 0.5)) {
+          console.warn(`Игрок 2 отправил некорректный y: ${position.y}`);
+          return;
+        }
+
         const prevX = paddle.x;
         const prevY = paddle.y;
         paddle.x = constrain(position.x, 0, 1 - 0.0667);
         paddle.y = constrain(
           position.y,
-          data.playerId === 1 ? 0.5 : 0, // Изменено с 0.6 на 0.5 для игрока 1
-          data.playerId === 1 ? 1 - 0.0333 : 0.5 // Изменено с 0.4 на 0.5 для игрока 2
+          data.playerId === 1 ? 0.5 : 0,
+          data.playerId === 1 ? 1 - 0.0333 : 0.5
         );
         paddle.vx = paddle.x - prevX;
         paddle.vy = paddle.y - prevY;
 
-        // Отправляем обновление всем клиентам
+        // Логирование для отладки
+        console.log(
+          `Игрок ${data.playerId}: x=${paddle.x.toFixed(
+            3
+          )}, y=${paddle.y.toFixed(3)}`
+        );
+
         broadcast({
           type: "update",
           paddle1: gameState.paddle1,
