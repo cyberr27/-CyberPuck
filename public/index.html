@@ -360,7 +360,7 @@
         image(backgroundImg, 0, 0, width, height);
 
         stroke(255, 0, 122);
-        strokeWeight(4);
+        strokeWeight(9);
         noFill();
         rect(0, 0, width, height, 20);
 
@@ -376,7 +376,7 @@
         // Мерцающие жёлтые ворота в стиле киберпанк
         let neonAlpha = map(sin(frameCount * 0.05), -1, 1, 100, 255);
         stroke(255, 255, 0, neonAlpha);
-        strokeWeight(6);
+        strokeWeight(13);
         line(width * 0.25, 0, width * 0.75, 0);
         line(width * 0.25, height, width * 0.75, height);
 
