@@ -323,7 +323,7 @@
           constrain(paddle1.x * width, 0, width - paddleWidth * width),
           constrain(
             paddle1.y * height,
-            height * 0.6,
+            height * 0.5, // Изменено с 0.6 на 0.5
             height - paddleHeight * height
           ),
           paddleWidth * width,
@@ -332,7 +332,11 @@
         );
         rect(
           constrain(paddle2.x * width, 0, width - paddleWidth * width),
-          constrain(paddle2.y * height, 0, height * 0.4),
+          constrain(
+            paddle2.y * height,
+            0,
+            height * 0.5 // Изменено с 0.4 на 0.5
+          ),
           paddleWidth * width,
           paddleHeight * height,
           5
@@ -396,11 +400,11 @@
         targetX = constrain(targetX, 0, 1 - paddleWidth);
         targetY = constrain(
           targetY,
-          playerId === 1 ? 0.6 : 0,
-          playerId === 1 ? 1 - paddleHeight : 0.4
+          playerId === 1 ? 0.5 : 0, // Изменено с 0.6 на 0.5 для игрока 1
+          playerId === 1 ? 1 - paddleHeight : 0.5 // Изменено с 0.4 на 0.5 для игрока 2
         );
 
-        // Отправляем позицию на сервер, но не обновляем локально
+        // Отправляем позицию на сервер
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(
             JSON.stringify({
@@ -440,8 +444,8 @@
         touchX = constrain(touchX + offsetX, 0, 1 - paddleWidth);
         touchY = constrain(
           touchY + offsetY,
-          playerId === 1 ? 0.6 : 0,
-          playerId === 1 ? 1 - paddleHeight : 0.4
+          playerId === 1 ? 0.5 : 0, // Изменено с 0.6 на 0.5 для игрока 1
+          playerId === 1 ? 1 - paddleHeight : 0.5 // Изменено с 0.4 на 0.5 для игрока 2
         );
 
         // Отправляем позицию на сервер

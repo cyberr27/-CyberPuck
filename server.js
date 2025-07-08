@@ -423,8 +423,8 @@ wss.on("connection", (ws) => {
         paddle.x = constrain(position.x, 0, 1 - 0.0667);
         paddle.y = constrain(
           position.y,
-          data.playerId === 1 ? 0.6 : 0,
-          data.playerId === 1 ? 1 - 0.0333 : 0.4
+          data.playerId === 1 ? 0.5 : 0, // Изменено с 0.6 на 0.5 для игрока 1
+          data.playerId === 1 ? 1 - 0.0333 : 0.5 // Изменено с 0.4 на 0.5 для игрока 2
         );
         paddle.vx = paddle.x - prevX;
         paddle.vy = paddle.y - prevY;
