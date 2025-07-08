@@ -424,7 +424,10 @@ wss.on("connection", (ws) => {
           console.warn(`Игрок 1 отправил некорректный y: ${position.y}`);
           return;
         }
-        if (data.playerId === 2 && (position.y < 0 || position.y > 0.5)) {
+        if (
+          data.playerId === 2 &&
+          (position.y < 0 || position.y > 0.5 - 0.0333)
+        ) {
           console.warn(`Игрок 2 отправил некорректный y: ${position.y}`);
           return;
         }
@@ -435,7 +438,7 @@ wss.on("connection", (ws) => {
         paddle.y = constrain(
           position.y,
           data.playerId === 1 ? 0.5 : 0,
-          data.playerId === 1 ? 1 - 0.0333 : 0.5
+          data.playerId === 1 ? 1 - 0.0333 : 0.5 - 0.0333 // Строже для игрока 2
         );
         paddle.vx = paddle.x - prevX;
         paddle.vy = paddle.y - prevY;

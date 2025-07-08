@@ -400,11 +400,17 @@
         targetX = constrain(targetX, 0, 1 - paddleWidth);
         targetY = constrain(
           targetY,
-          playerId === 1 ? 0.5 : 0, // Изменено с 0.6 на 0.5 для игрока 1
-          playerId === 1 ? 1 - paddleHeight : 0.5 // Изменено с 0.4 на 0.5 для игрока 2
+          playerId === 1 ? 0.5 : 0,
+          playerId === 1 ? 1 - paddleHeight : 0.5 - paddleHeight // Строже для игрока 2
         );
 
-        // Отправляем позицию на сервер
+        // Логирование для отладки
+        console.log(
+          `Игрок ${playerId}: mouseX=${targetX.toFixed(
+            3
+          )}, mouseY=${targetY.toFixed(3)}`
+        );
+
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(
             JSON.stringify({
@@ -442,7 +448,7 @@
         touchY = constrain(
           touchY,
           playerId === 1 ? 0.5 : 0,
-          playerId === 1 ? 1 - paddleHeight : 0.5
+          playerId === 1 ? 1 - paddleHeight : 0.5 - paddleHeight // Строже для игрока 2
         );
 
         // Логирование для отладки
