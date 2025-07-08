@@ -17,49 +17,55 @@
         display: flex;
         justify-content: center;
         align-items: center;
-        height: 100vh;
+        min-height: 100vh;
         font-family: "Orbitron", monospace;
         color: #00ffcc;
         overflow: hidden;
       }
+
       canvas {
         border-radius: 2.5%;
-        width: 70vw;
-        height: 90vh;
+        display: block;
       }
+
+      #ui-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+
+      #status,
+      #server,
+      #timer,
+      #newGameButton {
+        position: relative;
+        top: auto;
+        left: auto;
+        transform: none;
+        margin: 5px 0;
+        text-align: center;
+      }
+
       #status {
-        position: absolute;
-        top: 10px;
-        left: 50%;
-        transform: translateX(-50%);
         color: #00ffcc;
         text-shadow: 0 0 10px #00ffcc, 0 0 20px #ff007a;
         font-size: clamp(16px, 2vw, 24px);
-        text-align: center;
       }
+
       #server {
-        position: absolute;
-        top: 40px;
-        left: 50%;
-        transform: translateX(-50%);
         color: #ff007a;
         text-shadow: 0 0 10px #ff007a;
         font-size: clamp(14px, 1.8vw, 20px);
       }
+
       #timer {
-        position: absolute;
-        top: 60px;
-        left: 50%;
-        transform: translateX(-50%);
         color: #ff00ff;
         text-shadow: 0 0 10px #ff00ff;
         font-size: clamp(14px, 1.8vw, 20px);
       }
+
       #newGameButton {
-        position: absolute;
-        top: 90px;
-        left: 50%;
-        transform: translateX(-50%);
         padding: 10px 20px;
         background: transparent;
         border: 2px solid #ff007a;
@@ -70,19 +76,62 @@
         box-shadow: 0 0 10px #ff007a;
         cursor: pointer;
         display: none;
+        margin-top: 10px;
       }
+
       #newGameButton:hover {
         background: #ff007a;
         color: #0d0d1a;
         text-shadow: none;
       }
+
+      @media (min-width: 1025px) {
+        canvas {
+          width: 70vw;
+          height: 90vh;
+          max-width: 900px;
+          max-height: 450px;
+        }
+      }
+
+      @media (max-width: 1024px) {
+        body {
+          flex-direction: column;
+          justify-content: flex-start;
+          align-items: center;
+          padding: 10px 0;
+        }
+
+        canvas {
+          width: 85vw;
+          height: 100vh;
+          max-height: 100vh;
+          max-width: 85vw;
+        }
+
+        @media (orientation: landscape) {
+          canvas {
+            width: 85vh;
+            height: 100vw;
+            max-width: 85vh;
+            max-height: 100vw;
+          }
+
+          #ui-container {
+            margin-bottom: 0;
+            margin-right: 10px;
+          }
+        }
+      }
     </style>
   </head>
   <body>
-    <div id="status">Ожидание второго игрока...</div>
-    <div id="server">Подача: Игрок 1</div>
-    <div id="timer">05:00</div>
-    <button id="newGameButton" onclick="requestNewGame()">Новая игра</button>
+    <div id="ui-container">
+      <div id="status">Ожидание второго игрока...</div>
+      <div id="server">Подача: Игрок 1</div>
+      <div id="timer">05:00</div>
+      <button id="newGameButton" onclick="requestNewGame()">Новая игра</button>
+    </div>
     <script>
       let ws;
       let playerId = null;
@@ -136,10 +185,13 @@
 
       function setup() {
         let canvas = createCanvas(canvasWidth, canvasHeight);
-        canvas.style("width", "70vw");
-        canvas.style("height", "90vh");
+        canvas.style("display", "block");
         windowResized();
         ws = new WebSocket("wss://" + window.location.host + "/ws");
+
+        window.addEventListener("orientationchange", () => {
+          setTimeout(windowResized, 100);
+        });
 
         ws.onopen = () => {
           console.log("Подключено к WebSocket");
@@ -379,8 +431,25 @@
       }
 
       function windowResized() {
-        let newWidth = min(windowWidth * 0.7, windowHeight * 2 * 0.7);
-        let newHeight = min(windowHeight * 0.9, newWidth * 0.5);
+        let isMobile = window.matchMedia("(max-width: 1024px)").matches;
+        let newWidth, newHeight;
+
+        if (isMobile) {
+          if (window.orientation === 90 || window.orientation === -90) {
+            newWidth = Math.min(window.innerHeight * 0.85, window.innerWidth);
+            newHeight = newWidth * 0.5;
+          } else {
+            newWidth = Math.min(window.innerWidth * 0.85, window.innerHeight);
+            newHeight = newWidth * 0.5;
+          }
+        } else {
+          newWidth = Math.min(
+            window.innerWidth * 0.7,
+            window.innerHeight * 2 * 0.7
+          );
+          newHeight = Math.min(window.innerHeight * 0.9, newWidth * 0.5);
+        }
+
         resizeCanvas(newWidth, newHeight);
         console.log(`Canvas resized to ${newWidth}x${newHeight}`);
       }
@@ -439,21 +508,23 @@
         let touch = touches[0];
         if (!touch) return false;
 
-        let touchX = touch.x / width;
-        let touchY = touch.y / height;
+        let canvasRect = document
+          .querySelector("canvas")
+          .getBoundingClientRect();
+        let touchX = (touch.x - canvasRect.left) / canvasRect.width;
+        let touchY = (touch.y - canvasRect.top) / canvasRect.height;
 
         if (playerId === 2) {
-          touchY = 1 - touchY; // Инверсия Y для игрока 2
+          touchY = 1 - touchY;
         }
 
         touchX = constrain(touchX, 0, 1 - paddleWidth);
         touchY = constrain(
           touchY,
           playerId === 1 ? 0.5 : 0,
-          playerId === 1 ? 1 - paddleHeight : 0.5 - paddleHeight // Строже для игрока 2
+          playerId === 1 ? 1 - paddleHeight : 0.5 - paddleHeight
         );
 
-        // Логирование для отладки
         console.log(
           `Игрок ${playerId}: touchX=${touchX.toFixed(
             3
