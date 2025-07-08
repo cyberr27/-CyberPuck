@@ -76,6 +76,35 @@
         color: #0d0d1a;
         text-shadow: none;
       }
+      #fullscreenButton {
+        position: absolute;
+        top: 120px; /* Сдвинем ниже, чтобы не перекрывать другие элементы */
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 10px 20px;
+        background: transparent;
+        border: 2px solid #00ffcc;
+        color: #ff007a;
+        font-family: "Orbitron", monospace;
+        font-size: clamp(12px, 1.6vw, 16px);
+        text-shadow: 0 0 5px #ff007a;
+        box-shadow: 0 0 10px #00ffcc;
+        cursor: pointer;
+        display: none; /* Скрываем по умолчанию */
+      }
+
+      #fullscreenButton:hover {
+        background: #00ffcc;
+        color: #0d0d1a;
+        text-shadow: none;
+      }
+
+      /* Показываем кнопку только на мобильных устройствах */
+      @media screen and (max-width: 768px) {
+        #fullscreenButton {
+          display: block;
+        }
+      }
     </style>
   </head>
   <body>
@@ -83,6 +112,9 @@
     <div id="server">Подача: Игрок 1</div>
     <div id="timer">05:00</div>
     <button id="newGameButton" onclick="requestNewGame()">Новая игра</button>
+    <button id="fullscreenButton" onclick="toggleFullscreen()">
+      Full Screen
+    </button>
     <script>
       let ws;
       let playerId = null;
@@ -134,12 +166,57 @@
         );
       }
 
+      function isMobileDevice() {
+        return (
+          /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+            navigator.userAgent
+          ) || window.innerWidth <= 768
+        );
+      }
+
+      // Функция для переключения полноэкранного режима
+      function toggleFullscreen() {
+        const canvas = document.querySelector("canvas");
+        if (!document.fullscreenElement) {
+          // Вход в полноэкранный режим
+          if (canvas.requestFullscreen) {
+            canvas.requestFullscreen().catch((err) => {
+              console.error(
+                `Ошибка входа в полноэкранный режим: ${err.message}`
+              );
+              document.getElementById("status").innerText =
+                "Не удалось включить полноэкранный режим";
+            });
+          } else if (canvas.webkitRequestFullscreen) {
+            // Для iOS Safari
+            canvas.webkitRequestFullscreen();
+          }
+          document.getElementById("fullscreenButton").innerText =
+            "Выйти из полноэкранного режима";
+        } else {
+          // Выход из полноэкранного режима
+          if (document.exitFullscreen) {
+            document.exitFullscreen().catch((err) => {
+              console.error(
+                `Ошибка выхода из полноэкранного режима: ${err.message}`
+              );
+            });
+          } else if (document.webkitExitFullscreen) {
+            // Для iOS Safari
+            document.webkitExitFullscreen();
+          }
+          document.getElementById("fullscreenButton").innerText =
+            "Полноэкранный режим";
+        }
+      }
+
       function setup() {
         let canvas = createCanvas(canvasWidth, canvasHeight);
         canvas.style("width", "70vw");
         canvas.style("height", "90vh");
         windowResized();
         ws = new WebSocket("wss://" + window.location.host + "/ws");
+        setupFullscreenButton();
 
         ws.onopen = () => {
           console.log("Подключено к WebSocket");
@@ -379,11 +456,45 @@
       }
 
       function windowResized() {
-        let newWidth = min(windowWidth * 0.7, windowHeight * 2 * 0.7);
-        let newHeight = min(windowHeight * 0.9, newWidth * 0.5);
+        let newWidth, newHeight;
+        if (document.fullscreenElement) {
+          // В полноэкранном режиме используем размеры экрана
+          newWidth = window.screen.width;
+          newHeight = window.screen.height;
+        } else {
+          // Обычный режим
+          newWidth = min(windowWidth * 0.7, windowHeight * 2 * 0.7);
+          newHeight = min(windowHeight * 0.9, newWidth * 0.5);
+        }
         resizeCanvas(newWidth, newHeight);
         console.log(`Canvas resized to ${newWidth}x${newHeight}`);
       }
+
+      // Показываем кнопку только на мобильных устройствах при загрузке
+      function setupFullscreenButton() {
+        if (isMobileDevice()) {
+          document.getElementById("fullscreenButton").style.display = "block";
+        }
+      }
+
+      // Вызываем при загрузке
+      document.addEventListener("DOMContentLoaded", setupFullscreenButton);
+
+      // Обработчик изменения полноэкранного режима
+      document.addEventListener("fullscreenchange", () => {
+        windowResized(); // Перерисовываем канвас при изменении режима
+        if (!document.fullscreenElement) {
+          document.getElementById("fullscreenButton").innerText =
+            "Полноэкранный режим";
+        }
+      });
+      document.addEventListener("webkitfullscreenchange", () => {
+        windowResized(); // Поддержка iOS
+        if (!document.fullscreenElement) {
+          document.getElementById("fullscreenButton").innerText =
+            "Полноэкранный режим";
+        }
+      });
 
       function mouseMoved() {
         if (gameState !== "playing" || !playerId) return;
@@ -485,6 +596,28 @@
             ballTrail.shift();
           }
         }
+      }
+
+      // Обработчик двойного тапа для выхода из полноэкранного режима
+      let lastTouchTime = 0;
+      function doubleTap() {
+        const currentTime = new Date().getTime();
+        const tapInterval = currentTime - lastTouchTime;
+        if (tapInterval < 300 && tapInterval > 0) {
+          if (document.fullscreenElement) {
+            toggleFullscreen();
+          }
+        }
+        lastTouchTime = currentTime;
+      }
+
+      // Добавляем обработчик двойного тапа
+      function touchStarted() {
+        if (gameState !== "playing" || !playerId) {
+          doubleTap(); // Проверяем двойной тап
+          return false;
+        }
+        return false;
       }
     </script>
   </body>
