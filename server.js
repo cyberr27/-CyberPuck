@@ -461,9 +461,14 @@ wss.on("connection", (ws) => {
         });
       } else if (data.type === "newGame" && gameState.status === "gameOver") {
         gameState.newGameRequests.add(ws.playerId);
-        if (gameState.newGameRequests.size === 2) {
+        if (players.length === 2) {
           resetGame();
           startGame();
+        } else {
+          broadcast({
+            type: "error",
+            message: "Ожидание второго игрока для начала новой игры...",
+          });
         }
       } else if (data.type === "ping") {
         gameState.lastPing.set(ws, Date.now());

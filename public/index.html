@@ -36,6 +36,7 @@
         text-shadow: 0 0 10px #00ffcc, 0 0 20px #ff007a;
         font-size: clamp(16px, 2vw, 24px);
         text-align: center;
+        z-index: 10;
       }
       #server {
         position: absolute;
@@ -45,6 +46,7 @@
         color: #ff007a;
         text-shadow: 0 0 10px #ff007a;
         font-size: clamp(14px, 1.8vw, 20px);
+        z-index: 10;
       }
       #timer {
         position: absolute;
@@ -54,6 +56,7 @@
         color: #ff00ff;
         text-shadow: 0 0 10px #ff00ff;
         font-size: clamp(14px, 1.8vw, 20px);
+        z-index: 10;
       }
       #newGameButton {
         position: absolute;
@@ -69,6 +72,8 @@
         text-shadow: 0 0 5px #00ffcc;
         box-shadow: 0 0 10px #ff007a;
         cursor: pointer;
+        z-index: 10;
+        touch-action: manipulation;
         display: none;
       }
       #newGameButton:hover {
@@ -90,6 +95,8 @@
         text-shadow: 0 0 5px #ff007a;
         box-shadow: 0 0 10px #00ffcc;
         cursor: pointer;
+        z-index: 10;
+        touch-action: manipulation;
         display: none;
       }
       #fullscreenButton:hover {
@@ -98,7 +105,15 @@
         text-shadow: none;
       }
       @media screen and (max-width: 768px) {
+        #newGameButton {
+          top: 15vh;
+          padding: 8px 16px;
+          font-size: clamp(12px, 4vw, 16px);
+        }
         #fullscreenButton {
+          top: 22vh;
+          padding: 8px 16px;
+          font-size: clamp(12px, 4vw, 16px);
           display: block;
         }
       }
@@ -108,10 +123,8 @@
     <div id="status">Ожидание второго игрока...</div>
     <div id="server">Подача: Игрок 1</div>
     <div id="timer">05:00</div>
-    <button id="newGameButton" onclick="requestNewGame()">Новая игра</button>
-    <button id="fullscreenButton" onclick="toggleFullscreen()">
-      Full Screen
-    </button>
+    <button id="newGameButton">Новая игра</button>
+    <button id="fullscreenButton">Full Screen</button>
     <script>
       let ws;
       let playerId = null;
@@ -173,29 +186,46 @@
 
       function toggleFullscreen() {
         const canvas = document.querySelector("canvas");
-        if (!document.fullscreenElement) {
-          if (canvas.requestFullscreen) {
-            canvas.requestFullscreen().catch((err) => {
+        if (!canvas) {
+          console.error("Канвас не найден!");
+          document.getElementById("status").innerText =
+            "Ошибка: канвас не найден";
+          return;
+        }
+
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+          console.log("Вход в полноэкранный режим");
+          const requestFullScreen =
+            canvas.requestFullscreen ||
+            canvas.webkitRequestFullscreen ||
+            canvas.mozRequestFullScreen ||
+            canvas.msRequestFullscreen;
+          if (requestFullScreen) {
+            requestFullScreen.call(canvas).catch((err) => {
               console.error(
                 `Ошибка входа в полноэкранный режим: ${err.message}`
               );
               document.getElementById("status").innerText =
                 "Не удалось включить полноэкранный режим";
             });
-          } else if (canvas.webkitRequestFullscreen) {
-            canvas.webkitRequestFullscreen();
           }
           document.getElementById("fullscreenButton").innerText =
             "Выйти из полноэкранного режима";
         } else {
-          if (document.exitFullscreen) {
-            document.exitFullscreen().catch((err) => {
+          console.log("Выход из полноэкранного режима");
+          const exitFullScreen =
+            document.exitFullscreen ||
+            document.webkitExitFullscreen ||
+            document.mozCancelFullScreen ||
+            document.msExitFullscreen;
+          if (exitFullScreen) {
+            exitFullScreen.call(document).catch((err) => {
               console.error(
                 `Ошибка выхода из полноэкранного режима: ${err.message}`
               );
+              document.getElementById("status").innerText =
+                "Не удалось выйти из полноэкранного режима";
             });
-          } else if (document.webkitExitFullscreen) {
-            document.webkitExitFullscreen();
           }
           document.getElementById("fullscreenButton").innerText =
             "Полноэкранный режим";
@@ -342,6 +372,13 @@
       }
 
       function requestNewGame() {
+        if (ws.readyState !== WebSocket.OPEN) {
+          console.error("WebSocket не подключен!");
+          document.getElementById("status").innerText =
+            "Ошибка: нет соединения с сервером";
+          return;
+        }
+        console.log("Запрос на новую игру отправлен");
         ws.send(JSON.stringify({ type: "newGame" }));
         document.getElementById("newGameButton").disabled = true;
         document.getElementById("newGameButton").innerText =
@@ -525,39 +562,53 @@
       }
 
       function touchStarted() {
-        if (gameState !== "playing" || !playerId) return false;
+        if (gameState !== "playing" || !playerId) {
+          doubleTap();
+          return false;
+        }
+        const touch = touches[0];
+        if (touch) {
+          const elements = document.elementsFromPoint(touch.x, touch.y);
+          if (
+            elements.includes(document.getElementById("newGameButton")) ||
+            elements.includes(document.getElementById("fullscreenButton"))
+          ) {
+            return false;
+          }
+        }
         return false;
       }
 
       function touchMoved() {
         if (gameState !== "playing" || !playerId) return false;
-
+        const touch = touches[0];
+        if (touch) {
+          const elements = document.elementsFromPoint(touch.x, touch.y);
+          if (
+            elements.includes(document.getElementById("newGameButton")) ||
+            elements.includes(document.getElementById("fullscreenButton"))
+          ) {
+            return false;
+          }
+        }
         let currentTime = millis();
         if (currentTime - lastMoveSent < moveSendInterval) return false;
-
-        let touch = touches[0];
-        if (!touch) return false;
-
         let touchX = touch.x / width;
         let touchY = touch.y / height;
-
         if (playerId === 2) {
           touchY = 1 - touchY;
         }
-
         touchX = constrain(touchX, 0, 1 - paddleWidth);
         touchY = constrain(
           touchY,
           playerId === 1 ? 0.5 : 0,
           playerId === 1 ? 1 - paddleHeight : 0.5 - paddleHeight
         );
-
         console.log(
           `Игрок ${playerId}: touchX=${touchX.toFixed(
             3
           )}, touchY=${touchY.toFixed(3)}`
         );
-
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(
             JSON.stringify({
@@ -568,9 +619,24 @@
           );
           lastMoveSent = currentTime;
         }
-
         return false;
       }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        setupFullscreenButton();
+        const newGameButton = document.getElementById("newGameButton");
+        newGameButton.addEventListener("click", requestNewGame);
+        newGameButton.addEventListener("touchstart", (e) => {
+          e.preventDefault();
+          requestNewGame();
+        });
+        const fullscreenButton = document.getElementById("fullscreenButton");
+        fullscreenButton.addEventListener("click", toggleFullscreen);
+        fullscreenButton.addEventListener("touchstart", (e) => {
+          e.preventDefault();
+          toggleFullscreen();
+        });
+      });
 
       function touchEnded() {
         return false;
