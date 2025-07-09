@@ -417,20 +417,21 @@ wss.on("connection", (ws) => {
           return;
         }
 
-        // Жестко фиксируем Y-координату на сервере
-        const fixedY = data.playerId === 1 ? 0.9333 : 0.0667;
-        if (Math.abs(position.y - fixedY) > 0.0001) {
-          console.warn(
-            `Игрок ${data.playerId} отправил некорректный y: ${position.y}, ожидается ${fixedY}`
-          );
-          return;
-        }
-
+        // Ограничиваем X и Y в пределах половины поля игрока
+        const paddleWidth = 0.0667;
+        const paddleHeight = 0.0333;
         const prevX = paddle.x;
-        paddle.x = constrain(position.x, 0, 1 - 0.0667);
-        paddle.y = fixedY; // Фиксируем Y на сервере
+        const prevY = paddle.y;
+        paddle.x = constrain(position.x, 0, 1 - paddleWidth);
+        if (data.playerId === 1) {
+          // Игрок 1: нижняя половина (y от 0.5 до 1)
+          paddle.y = constrain(position.y, 0.5, 1 - paddleHeight);
+        } else {
+          // Игрок 2: верхняя половина (y от 0 до 0.5)
+          paddle.y = constrain(position.y, paddleHeight, 0.5);
+        }
         paddle.vx = paddle.x - prevX;
-        paddle.vy = 0; // Y не меняется, поэтому vy = 0
+        paddle.vy = paddle.y - prevY;
 
         console.log(
           `Игрок ${data.playerId}: x=${paddle.x.toFixed(

@@ -130,7 +130,7 @@
       let playerId = null;
       let paddle1 = {
         x: 0.5,
-        y: 0.9333,
+        y: 0.9333, // Начальная позиция в нижней половине
         score: 0,
         vx: 0,
         vy: 0,
@@ -139,7 +139,7 @@
       };
       let paddle2 = {
         x: 0.5,
-        y: 0.0667,
+        y: 0.0667, // Начальная позиция в верхней половине
         score: 0,
         vx: 0,
         vy: 0,
@@ -445,13 +445,13 @@
         fill(255, 0, 0);
         rect(
           constrain(paddle2.x * width, 0, width - paddleWidth * width),
-          constrain(paddle2.y * height, 0, height * 0.5),
+          constrain(paddle2.y * height, paddleHeight * height, height * 0.5),
           paddleWidth * width,
           paddleHeight * height,
           5
         );
 
-        // Трейл мяча (тёмно-серый с неоновым оттенком)
+        // Трейл мяча
         for (let i = ballTrail.length - 1; i >= 0; i--) {
           let trail = ballTrail[i];
           let alpha = map(i, 0, ballTrail.length - 1, 20, 100);
@@ -465,7 +465,7 @@
           }
         }
 
-        // Мяч (очень тёмно-серый)
+        // Мяч
         fill(40, 40, 40);
         noStroke();
         ellipse(
@@ -530,7 +530,16 @@
         if (currentTime - lastMoveSent < moveSendInterval) return;
 
         let targetX = constrain(mouseX / width, 0, 1 - paddleWidth);
-        let targetY = playerId === 1 ? 0.9333 : 0.0667; // Фиксируем Y для каждого игрока
+        let targetY;
+        if (playerId === 1) {
+          // Игрок 1: нижняя половина поля (y от 0.5 до 1)
+          targetY = constrain(mouseY / height, 0.5, 1 - paddleHeight);
+        } else {
+          // Игрок 2: верхняя половина поля (y от 0 до 0.5)
+          targetY = constrain(mouseY / height, 0, 0.5 - paddleHeight);
+          // Инверсия для игрока 2 из-за перевернутого вида
+          targetY = map(targetY, 0, 0.5 - paddleHeight, 0.5, paddleHeight);
+        }
 
         console.log(
           `Игрок ${playerId}: mouseX=${targetX.toFixed(
@@ -583,7 +592,16 @@
         let currentTime = millis();
         if (currentTime - lastMoveSent < moveSendInterval) return false;
         let touchX = constrain(touch.x / width, 0, 1 - paddleWidth);
-        let touchY = playerId === 1 ? 0.9333 : 0.0667; // Фиксируем Y для каждого игрока
+        let touchY;
+        if (playerId === 1) {
+          // Игрок 1: нижняя половина поля (y от 0.5 до 1)
+          touchY = constrain(touch.y / height, 0.5, 1 - paddleHeight);
+        } else {
+          // Игрок 2: верхняя половина поля (y от 0 до 0.5)
+          touchY = constrain(touch.y / height, 0, 0.5 - paddleHeight);
+          // Инверсия для игрока 2
+          touchY = map(touchY, 0, 0.5 - paddleHeight, 0.5, paddleHeight);
+        }
 
         console.log(
           `Игрок ${playerId}: touchX=${touchX.toFixed(
