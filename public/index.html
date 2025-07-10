@@ -608,9 +608,9 @@
         } else {
           // Игрок 2: верхняя половина поля (y от 0 до 0.5), с инверсией
           touchX = constrain(touchX + offsetX, 0, 1 - paddleWidth);
-          touchY = constrain(touchY + offsetY, 0, 0.5 - paddleHeight);
-          // Инверсия для игрока 2
-          touchY = map(touchY, 0, 0.5 - paddleHeight, 0.5, paddleHeight);
+          // Инверсия Y: преобразуем экранные координаты (0 сверху, 1 снизу) в игровые (0 снизу, 0.5 сверху)
+          touchY = 1 - touchY; // Переворачиваем Y
+          touchY = constrain(touchY - offsetY, paddleHeight, 0.5);
         }
 
         console.log(
