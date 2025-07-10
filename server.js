@@ -428,7 +428,7 @@ wss.on("connection", (ws) => {
           paddle.y = constrain(position.y, 0.5, 1 - paddleHeight);
         } else {
           // Игрок 2: верхняя половина (y от 0 до 0.5)
-          paddle.y = constrain(position.y, paddleHeight, 0.5);
+          paddle.y = constrain(position.y, 0, 0.5 - paddleHeight);
         }
         paddle.vx = paddle.x - prevX;
         paddle.vy = paddle.y - prevY;

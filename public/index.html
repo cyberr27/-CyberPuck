@@ -445,7 +445,11 @@
         fill(255, 0, 0);
         rect(
           constrain(paddle2.x * width, 0, width - paddleWidth * width),
-          constrain(paddle2.y * height, paddleHeight * height, height * 0.5),
+          constrain(
+            paddle2.y * height,
+            0,
+            height * 0.5 - paddleHeight * height
+          ),
           paddleWidth * width,
           paddleHeight * height,
           5
@@ -537,7 +541,7 @@
         } else {
           // Игрок 2: верхняя половина поля (y от 0 до 0.5), с инверсией
           targetY = 1 - mouseY / height; // Переворачиваем Y
-          targetY = constrain(targetY, paddleHeight, 0.5);
+          targetY = constrain(targetY, 0, 0.5 - paddleHeight); // От 0 до 0.5 - paddleHeight
         }
 
         console.log(
@@ -607,9 +611,8 @@
         } else {
           // Игрок 2: верхняя половина поля (y от 0 до 0.5), с инверсией
           touchX = constrain(touchX + offsetX, 0, 1 - paddleWidth);
-          // Инверсия Y: преобразуем экранные координаты (0 сверху, 1 снизу) в игровые (0 снизу, 0.5 сверху)
           touchY = 1 - touchY; // Переворачиваем Y
-          touchY = constrain(touchY - offsetY, paddleHeight, 0.5);
+          touchY = constrain(touchY - offsetY, 0, 0.5 - paddleHeight); // От 0 до 0.5 - paddleHeight
         }
 
         console.log(
