@@ -535,10 +535,9 @@
           // Игрок 1: нижняя половина поля (y от 0.5 до 1)
           targetY = constrain(mouseY / height, 0.5, 1 - paddleHeight);
         } else {
-          // Игрок 2: верхняя половина поля (y от 0 до 0.5)
-          targetY = constrain(mouseY / height, 0, 0.5 - paddleHeight);
-          // Инверсия для игрока 2 из-за перевернутого вида
-          targetY = map(targetY, 0, 0.5 - paddleHeight, 0.5, paddleHeight);
+          // Игрок 2: верхняя половина поля (y от 0 до 0.5), с инверсией
+          targetY = 1 - mouseY / height; // Переворачиваем Y
+          targetY = constrain(targetY, paddleHeight, 0.5);
         }
 
         console.log(
