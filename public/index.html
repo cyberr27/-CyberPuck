@@ -600,8 +600,8 @@
         let touchY = touch.y / height;
 
         // Смещения для мобильных устройств
-        const offsetX = isMobileDevice() ? 0.05 : 0; // 5% вправо
-        const offsetY = isMobileDevice() ? 0.05 : 0; // 5% по Y
+        const offsetX = isMobileDevice() ? 0.0 : 0; // 5% вправо
+        const offsetY = isMobileDevice() ? 0.1 : 0; // 5% по Y
 
         // Применяем смещение и ограничиваем координаты
         if (playerId === 1) {
