@@ -599,20 +599,20 @@
         let touchX = touch.x / width;
         let touchY = touch.y / height;
 
-        // Смещения для мобильных устройств
-        const offsetX = isMobileDevice() ? 0.05 : 0; // 5% вправо
-        const offsetY = isMobileDevice() ? 0.05 : 0; // 5% по Y
+        // Настраиваемые смещения для мобильных устройств
+        const offsetX = isMobileDevice() ? (width < 600 ? 0.04 : 0.03) : 0; // Больший отступ для маленьких экранов
+        const offsetY = isMobileDevice() ? (height < 800 ? 0.03 : 0.02) : 0;
 
         // Применяем смещение и ограничиваем координаты
         if (playerId === 1) {
           // Игрок 1: нижняя половина поля (y от 0.5 до 1)
-          touchX = constrain(touchX + offsetX, 0, 1 - paddleWidth);
-          touchY = constrain(touchY - offsetY, 0.5, 1 - paddleHeight);
+          touchX = constrain(touchX + offsetX, 0, 1 - paddleWidth); // Смещение вправо
+          touchY = constrain(touchY - offsetY, 0.5, 1 - paddleHeight); // Смещение вверх
         } else {
           // Игрок 2: верхняя половина поля (y от 0 до 0.5), с инверсией
-          touchX = constrain(touchX + offsetX, 0, 1 - paddleWidth);
-          touchY = 1 - touchY; // Переворачиваем Y
-          touchY = constrain(touchY - offsetY, 0, 0.5 - paddleHeight); // От 0 до 0.5 - paddleHeight
+          touchX = constrain(touchX + offsetX, 0, 1 - paddleWidth); // Смещение вправо
+          touchY = 1 - touchY; // Переворачиваем Y для игрока 2
+          touchY = constrain(touchY - offsetY, 0, 0.5 - paddleHeight); // Смещение вверх в перевёрнутой системе
         }
 
         console.log(
