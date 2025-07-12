@@ -142,6 +142,11 @@ function applyBonus(player, bonusType) {
 }
 
 function updateGame() {
+  let wallHit = false; // Объявляем в начале
+  let ballRadius = 0.01;
+  let paddleWidth = 0.0667;
+  let paddleHeight = 0.0333;
+
   if (gameState.status !== "playing") return;
 
   // Обновление таймера бонуса "Молниеносный вратарь"
@@ -323,11 +328,6 @@ function updateGame() {
   gameState.ball.x += gameState.ball.dx;
   gameState.ball.y += gameState.ball.dy;
 
-  let wallHit = false;
-  let ballRadius = 0.01;
-  let paddleWidth = 0.0667;
-  let paddleHeight = 0.0333;
-
   let bonusCollected = null;
   gameState.bonuses = gameState.bonuses.filter((bonus) => {
     if (checkBonusCollision(gameState.ball, bonus, ballRadius)) {
@@ -446,7 +446,7 @@ function updateGame() {
         gameState.paddle1.bonus &&
         gameState.paddle1.bonus.type === "burning_boot"
       ) {
-        speed *= 2.2; // Ускорение на 120% (70% + 50%)
+        speed *= 2.2;
         gameState.paddle1.bonus.hits -= 1;
         if (gameState.paddle1.bonus.hits <= 0) {
           gameState.paddle1.bonus = null;
@@ -503,7 +503,7 @@ function updateGame() {
         gameState.paddle2.bonus &&
         gameState.paddle2.bonus.type === "burning_boot"
       ) {
-        speed *= 2.2; // Ускорение на 120% (70% + 50%)
+        speed *= 2.2;
         gameState.paddle2.bonus.hits -= 1;
         if (gameState.paddle2.bonus.hits <= 0) {
           gameState.paddle2.bonus = null;
