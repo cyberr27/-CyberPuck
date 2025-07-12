@@ -46,10 +46,22 @@ function normalizeSpeed(dx, dy, targetSpeed) {
   return { dx: dx * factor, dy: dy * factor };
 }
 
+// Новый код: проверка столкновения мяча с бонусом
+function checkBonusCollision(ball, bonus, ballRadius) {
+  const cellWidth = 1 / 30; // Ширина клетки
+  const cellHeight = 1 / 20; // Высота клетки
+  return (
+    ball.x + ballRadius >= bonus.x - cellWidth / 2 &&
+    ball.x - ballRadius <= bonus.x + cellWidth / 2 &&
+    ball.y + ballRadius >= bonus.y - cellHeight / 2 &&
+    ball.y - ballRadius <= bonus.y + cellHeight / 2
+  );
+}
+
 let players = [];
 let gameState = {
-  paddle1: { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0 },
-  paddle2: { x: 0.5, y: 0.0667, score: 0, vx: 0, vy: 0 },
+  paddle1: { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0, bonus: null },
+  paddle2: { x: 0.5, y: 0.0667, score: 0, vx: 0, vy: 0, bonus: null },
   ball: { x: 0.5, y: 0.5, dx: 0, dy: 0 },
   status: "waiting",
   servingPlayer: 1,
@@ -59,10 +71,60 @@ let gameState = {
   hitTimer: 7,
   lastPing: new Map(),
   newGameRequests: new Set(),
+  bonuses: [], // Массив активных бонусов
+  bonusTimer: 30, // Таймер для появления первого бонуса
 };
+
+// Список возможных бонусов
+const bonusTypes = ["burning_boot"];
+
+function spawnBonus() {
+  // Центр поля: x = 0.5, y = 0.5
+  // Три клетки от центра: ±3 клетки по X (1/30 * 3 = 0.1), ±3 клетки по Y (1/20 * 3 = 0.15)
+  const cellWidth = 1 / 30;
+  const cellHeight = 1 / 20;
+  const centerX = 0.5;
+  const centerY = 0.5;
+  const rangeX = 3 * cellWidth; // ±0.1
+  const rangeY = 3 * cellHeight; // ±0.15
+
+  // Случайные координаты в пределах трёх клеток от центра
+  const gridX = Math.floor(Math.random() * 7) - 3; // От -3 до +3 клеток
+  const gridY = Math.floor(Math.random() * 7) - 3; // От -3 до +3 клеток
+  const bonusX = centerX + gridX * cellWidth;
+  const bonusY = centerY + gridY * cellHeight;
+
+  // Выбираем случайный бонус из списка
+  const bonusType = bonusTypes[Math.floor(Math.random() * bonusTypes.length)];
+
+  gameState.bonuses.push({
+    x: bonusX,
+    y: bonusY,
+    type: bonusType,
+  });
+}
+
+function applyBonus(player, bonusType) {
+  if (bonusType === "burning_boot") {
+    player.bonus = { type: "burning_boot", hits: 1 }; // Один удар с бонусом
+  }
+}
 
 function updateGame() {
   if (gameState.status !== "playing") return;
+
+  // Обновление таймера бонусов
+  if (gameState.gameTimer <= 300 - 30) {
+    // Первое появление бонуса на 30-й секунде
+    gameState.bonusTimer -= 1 / 60;
+    if (gameState.bonusTimer <= 0) {
+      const numBonuses = Math.random() < 0.5 ? 1 : 2; // 1 или 2 бонуса
+      for (let i = 0; i < numBonuses; i++) {
+        spawnBonus();
+      }
+      gameState.bonusTimer = 30; // Сброс таймера на следующие 30 секунд
+    }
+  }
 
   if (gameState.gameTimer > 0) {
     gameState.gameTimer -= 1 / 60;
@@ -97,6 +159,7 @@ function updateGame() {
         servingPlayer: gameState.servingPlayer,
         serveTimer: gameState.serveTimer,
         gameTimer: gameState.gameTimer,
+        bonuses: gameState.bonuses,
         foul: true,
       });
       return;
@@ -119,6 +182,7 @@ function updateGame() {
         servingPlayer: gameState.servingPlayer,
         serveTimer: gameState.serveTimer,
         gameTimer: gameState.gameTimer,
+        bonuses: gameState.bonuses,
         foul: true,
       });
       return;
@@ -134,6 +198,24 @@ function updateGame() {
   let paddleHeight = 0.0333;
   let baseSpeed = 0.008;
   let maxSpeed = 0.015;
+
+  // Проверка столкновения с бонусами
+  let bonusCollected = null;
+  gameState.bonuses = gameState.bonuses.filter((bonus) => {
+    if (checkBonusCollision(gameState.ball, bonus, ballRadius)) {
+      if (gameState.lastHitPlayer) {
+        const player =
+          gameState.lastHitPlayer === 1 ? gameState.paddle1 : gameState.paddle2;
+        applyBonus(player, bonus.type);
+        bonusCollected = {
+          playerId: gameState.lastHitPlayer,
+          bonusType: bonus.type,
+        };
+        return false; // Удаляем бонус
+      }
+    }
+    return true;
+  });
 
   if (gameState.ball.x <= 0.01 || gameState.ball.x >= 1 - 0.01) {
     gameState.ball.dx *= -1;
@@ -164,6 +246,7 @@ function updateGame() {
       servingPlayer: gameState.servingPlayer,
       serveTimer: gameState.serveTimer,
       gameTimer: gameState.gameTimer,
+      bonuses: gameState.bonuses,
       goal: 1,
     });
   } else if (
@@ -182,6 +265,7 @@ function updateGame() {
       servingPlayer: gameState.servingPlayer,
       serveTimer: gameState.serveTimer,
       gameTimer: gameState.gameTimer,
+      bonuses: gameState.bonuses,
       goal: 2,
     });
   } else if (gameState.ball.y <= 0.01 || gameState.ball.y >= 1 - 0.01) {
@@ -207,12 +291,13 @@ function updateGame() {
   );
   if (collision1.hit) {
     let hitPos = collision1.hitPos;
+    let speed = Math.min(collision1.speed * 0.8 + baseSpeed, maxSpeed);
     if (
       gameState.ball.dx === 0 &&
       gameState.ball.dy === 0 &&
       gameState.servingPlayer === 1
     ) {
-      const speed = baseSpeed;
+      speed = baseSpeed;
       gameState.ball.dx = hitPos * 0.004 + gameState.paddle1.vx * 0.5;
       gameState.ball.dy = -speed;
       const normalized = normalizeSpeed(
@@ -228,7 +313,16 @@ function updateGame() {
       gameState.hitTimer = 7;
       hit = true;
     } else {
-      const speed = Math.min(collision1.speed * 0.8 + baseSpeed, maxSpeed);
+      if (
+        gameState.paddle1.bonus &&
+        gameState.paddle1.bonus.type === "burning_boot"
+      ) {
+        speed *= 1.7; // Ускорение на 70%
+        gameState.paddle1.bonus.hits -= 1;
+        if (gameState.paddle1.bonus.hits <= 0) {
+          gameState.paddle1.bonus = null; // Удаляем бонус после использования
+        }
+      }
       gameState.ball.dx = hitPos * 0.004 + gameState.paddle1.vx * 0.5;
       gameState.ball.dy = -Math.abs(gameState.ball.dy) * 0.8 - baseSpeed;
       const normalized = normalizeSpeed(
@@ -254,12 +348,13 @@ function updateGame() {
   );
   if (collision2.hit) {
     let hitPos = collision2.hitPos;
+    let speed = Math.min(collision2.speed * 0.8 + baseSpeed, maxSpeed);
     if (
       gameState.ball.dx === 0 &&
       gameState.ball.dy === 0 &&
       gameState.servingPlayer === 2
     ) {
-      const speed = baseSpeed;
+      speed = baseSpeed;
       gameState.ball.dx = hitPos * 0.004 + gameState.paddle2.vx * 0.5;
       gameState.ball.dy = speed;
       const normalized = normalizeSpeed(
@@ -275,7 +370,16 @@ function updateGame() {
       gameState.hitTimer = 7;
       hit = true;
     } else {
-      const speed = Math.min(collision2.speed * 0.8 + baseSpeed, maxSpeed);
+      if (
+        gameState.paddle2.bonus &&
+        gameState.paddle2.bonus.type === "burning_boot"
+      ) {
+        speed *= 1.7; // Ускорение на 70%
+        gameState.paddle2.bonus.hits -= 1;
+        if (gameState.paddle2.bonus.hits <= 0) {
+          gameState.paddle2.bonus = null; // Удаляем бонус после использования
+        }
+      }
       gameState.ball.dx = hitPos * 0.004 + gameState.paddle2.vx * 0.5;
       gameState.ball.dy = Math.abs(gameState.ball.dy) * 0.8 + baseSpeed;
       const normalized = normalizeSpeed(
@@ -300,8 +404,10 @@ function updateGame() {
     servingPlayer: gameState.servingPlayer,
     serveTimer: gameState.serveTimer,
     gameTimer: gameState.gameTimer,
+    bonuses: gameState.bonuses,
     hit,
     wallHit,
+    bonusCollected,
   });
 }
 
@@ -322,13 +428,29 @@ function broadcast(data) {
 
 function startGame() {
   gameState.status = "playing";
-  gameState.paddle1 = { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0 };
-  gameState.paddle2 = { x: 0.5, y: 0.0667, score: 0, vx: 0, vy: 0 };
+  gameState.paddle1 = {
+    x: 0.5,
+    y: 0.9333,
+    score: 0,
+    vx: 0,
+    vy: 0,
+    bonus: null,
+  };
+  gameState.paddle2 = {
+    x: 0.5,
+    y: 0.0667,
+    score: 0,
+    vx: 0,
+    vy: 0,
+    bonus: null,
+  };
   gameState.servingPlayer = Math.random() < 0.5 ? 1 : 2;
   gameState.serveTimer = 7;
   gameState.gameTimer = 300;
   gameState.lastHitPlayer = null;
   gameState.hitTimer = 7;
+  gameState.bonuses = [];
+  gameState.bonusTimer = 30;
   resetBall(true);
 
   broadcast({
@@ -339,14 +461,29 @@ function startGame() {
     servingPlayer: gameState.servingPlayer,
     serveTimer: gameState.serveTimer,
     gameTimer: gameState.gameTimer,
+    bonuses: gameState.bonuses,
   });
 
   console.log("Игра началась!");
 }
 
 function resetGame() {
-  gameState.paddle1 = { x: 0.5, y: 0.9333, score: 0, vx: 0, vy: 0 };
-  gameState.paddle2 = { x: 0.5, y: 0.0667, score: 0, vx: 0, vy: 0 };
+  gameState.paddle1 = {
+    x: 0.5,
+    y: 0.9333,
+    score: 0,
+    vx: 0,
+    vy: 0,
+    bonus: null,
+  };
+  gameState.paddle2 = {
+    x: 0.5,
+    y: 0.0667,
+    score: 0,
+    vx: 0,
+    vy: 0,
+    bonus: null,
+  };
   gameState.ball = { x: 0.5, y: 0.5, dx: 0, dy: 0 };
   gameState.status = "waiting";
   gameState.servingPlayer = Math.random() < 0.5 ? 1 : 2;
@@ -354,6 +491,8 @@ function resetGame() {
   gameState.gameTimer = 300;
   gameState.lastHitPlayer = null;
   gameState.hitTimer = 7;
+  gameState.bonuses = [];
+  gameState.bonusTimer = 30;
   gameState.newGameRequests.clear();
 }
 
@@ -406,7 +545,6 @@ wss.on("connection", (ws) => {
         const paddle =
           data.playerId === 1 ? gameState.paddle1 : gameState.paddle2;
 
-        // Проверка: игрок может управлять только своей ракеткой
         if (
           (data.playerId === 1 && paddle !== gameState.paddle1) ||
           (data.playerId === 2 && paddle !== gameState.paddle2)
@@ -417,17 +555,14 @@ wss.on("connection", (ws) => {
           return;
         }
 
-        // Ограничиваем X и Y в пределах половины поля игрока
         const paddleWidth = 0.0667;
         const paddleHeight = 0.0333;
         const prevX = paddle.x;
         const prevY = paddle.y;
         paddle.x = constrain(position.x, 0, 1 - paddleWidth);
         if (data.playerId === 1) {
-          // Игрок 1: нижняя половина (y от 0.5 до 1)
           paddle.y = constrain(position.y, 0.5, 1 - paddleHeight);
         } else {
-          // Игрок 2: верхняя половина (y от 0 до 0.5)
           paddle.y = constrain(position.y, 0, 0.5 - paddleHeight);
         }
         paddle.vx = paddle.x - prevX;
@@ -447,6 +582,7 @@ wss.on("connection", (ws) => {
           servingPlayer: gameState.servingPlayer,
           serveTimer: gameState.serveTimer,
           gameTimer: gameState.gameTimer,
+          bonuses: gameState.bonuses,
         });
       } else if (data.type === "newGame" && gameState.status === "gameOver") {
         gameState.newGameRequests.add(ws.playerId);

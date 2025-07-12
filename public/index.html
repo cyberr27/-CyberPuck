@@ -130,7 +130,7 @@
       let playerId = null;
       let paddle1 = {
         x: 0.5,
-        y: 0.9333, // Начальная позиция в нижней половине
+        y: 0.9333,
         score: 0,
         vx: 0,
         vy: 0,
@@ -139,7 +139,7 @@
       };
       let paddle2 = {
         x: 0.5,
-        y: 0.0667, // Начальная позиция в верхней половине
+        y: 0.0667,
         score: 0,
         vx: 0,
         vy: 0,
@@ -162,6 +162,9 @@
       let lastMoveSent = 0;
       const moveSendInterval = 1000 / 30;
       let backgroundImg;
+      // Новое: изображение бонуса и массив бонусов
+      let bonusImage;
+      let bonuses = [];
 
       function preload() {
         backgroundImg = loadImage("/img/backgroundImg.jpg");
@@ -174,6 +177,8 @@
           () => console.log("Фоновая музыка загружена"),
           (err) => console.error("Ошибка загрузки фоновой музыки:", err)
         );
+        // Загружаем изображение для бонуса "Горящая бутса"
+        bonusImage = loadImage("/img/burning_boot.png");
       }
 
       function isMobileDevice() {
@@ -277,6 +282,7 @@
               targetY: data.paddle2.y,
             };
             ball = data.ball || ball;
+            bonuses = data.bonuses || []; // Инициализируем бонусы
             document.getElementById("status").innerText =
               playerId === 2
                 ? `Счёт: ${paddle2.score} - ${paddle1.score}`
@@ -303,6 +309,7 @@
               dx: data.ball.dx,
               dy: data.ball.dy,
             };
+            bonuses = data.bonuses || []; // Обновляем бонусы
             servingPlayer = data.servingPlayer;
             serveTimer = data.serveTimer;
             gameTimer = data.gameTimer;
@@ -326,6 +333,18 @@
               document.getElementById(
                 "status"
               ).innerText = `Фол! Подача переходит к Игроку ${servingPlayer}`;
+              setTimeout(() => {
+                document.getElementById("status").innerText =
+                  playerId === 2
+                    ? `Счёт: ${paddle2.score} - ${paddle1.score}`
+                    : `Счёт: ${paddle1.score} - ${paddle2.score}`;
+              }, 2000);
+            }
+            // Новый код: обработка получения бонуса
+            if (data.bonusCollected) {
+              document.getElementById(
+                "status"
+              ).innerText = `Игрок ${data.bonusCollected.playerId} получил бонус: ${data.bonusCollected.bonusType}!`;
               setTimeout(() => {
                 document.getElementById("status").innerText =
                   playerId === 2
@@ -420,6 +439,19 @@
         stroke(255, 0, 255, 100);
         strokeWeight(2);
         line(0, height / 2, width, height / 2);
+
+        // Отрисовка бонусов
+        bonuses.forEach((bonus) => {
+          if (bonus.type === "burning_boot") {
+            image(
+              bonusImage,
+              bonus.x * width - width / 30 / 2,
+              bonus.y * height - height / 20 / 2,
+              width / 30,
+              height / 20
+            );
+          }
+        });
 
         const lerpFactor = 0.2;
         paddle1.x = lerp(paddle1.x, paddle1.targetX, lerpFactor);
@@ -536,12 +568,10 @@
         let targetX = constrain(mouseX / width, 0, 1 - paddleWidth);
         let targetY;
         if (playerId === 1) {
-          // Игрок 1: нижняя половина поля (y от 0.5 до 1)
           targetY = constrain(mouseY / height, 0.5, 1 - paddleHeight);
         } else {
-          // Игрок 2: верхняя половина поля (y от 0 до 0.5), с инверсией
-          targetY = 1 - mouseY / height; // Переворачиваем Y
-          targetY = constrain(targetY, 0, 0.5 - paddleHeight); // От 0 до 0.5 - paddleHeight
+          targetY = 1 - mouseY / height;
+          targetY = constrain(targetY, 0, 0.5 - paddleHeight);
         }
 
         console.log(
@@ -595,24 +625,19 @@
         let currentTime = millis();
         if (currentTime - lastMoveSent < moveSendInterval) return false;
 
-        // Базовые координаты касания
         let touchX = touch.x / width;
         let touchY = touch.y / height;
 
-        // Настраиваемые смещения для мобильных устройств
-        const offsetX = isMobileDevice() ? (width < 600 ? 0.03 : 0.02) : 0; // Больший отступ для маленьких экранов
+        const offsetX = isMobileDevice() ? (width < 600 ? 0.03 : 0.02) : 0;
         const offsetY = isMobileDevice() ? (height < 800 ? 0.05 : 0.04) : 0;
 
-        // Применяем смещение и ограничиваем координаты
         if (playerId === 1) {
-          // Игрок 1: нижняя половина поля (y от 0.5 до 1)
-          touchX = constrain(touchX + offsetX, 0, 1 - paddleWidth); // Смещение вправо
-          touchY = constrain(touchY - offsetY, 0.5, 1 - paddleHeight); // Смещение вверх
+          touchX = constrain(touchX + offsetX, 0, 1 - paddleWidth);
+          touchY = constrain(touchY - offsetY, 0.5, 1 - paddleHeight);
         } else {
-          // Игрок 2: верхняя половина поля (y от 0 до 0.5), с инверсией
-          touchX = constrain(touchX + offsetX, 0, 1 - paddleWidth); // Смещение вправо
-          touchY = 1 - touchY; // Переворачиваем Y для игрока 2
-          touchY = constrain(touchY - offsetY, 0, 0.5 - paddleHeight); // Смещение вверх в перевёрнутой системе
+          touchX = constrain(touchX + offsetX, 0, 1 - paddleWidth);
+          touchY = 1 - touchY;
+          touchY = constrain(touchY - offsetY, 0, 0.5 - paddleHeight);
         }
 
         console.log(
