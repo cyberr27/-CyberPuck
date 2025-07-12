@@ -136,6 +136,7 @@
         vy: 0,
         targetX: 0.5,
         targetY: 0.9333,
+        bonus: null, // Добавляем поле для бонуса
       };
       let paddle2 = {
         x: 0.5,
@@ -145,6 +146,7 @@
         vy: 0,
         targetX: 0.5,
         targetY: 0.0667,
+        bonus: null, // Добавляем поле для бонуса
       };
       let ball = { x: 0.5, y: 0.5, dx: 0, dy: 0 };
       let gameState = "waiting";
@@ -162,7 +164,6 @@
       let lastMoveSent = 0;
       const moveSendInterval = 1000 / 30;
       let backgroundImg;
-      // Новое: изображение бонуса и массив бонусов
       let bonusImage;
       let bonuses = [];
 
@@ -177,7 +178,6 @@
           () => console.log("Фоновая музыка загружена"),
           (err) => console.error("Ошибка загрузки фоновой музыки:", err)
         );
-        // Загружаем изображение для бонуса "Горящая бутса"
         bonusImage = loadImage("/img/burning_boot.png");
       }
 
@@ -282,7 +282,7 @@
               targetY: data.paddle2.y,
             };
             ball = data.ball || ball;
-            bonuses = data.bonuses || []; // Инициализируем бонусы
+            bonuses = data.bonuses || [];
             document.getElementById("status").innerText =
               playerId === 2
                 ? `Счёт: ${paddle2.score} - ${paddle1.score}`
@@ -298,18 +298,20 @@
             paddle1.score = data.paddle1.score;
             paddle1.vx = data.paddle1.vx;
             paddle1.vy = data.paddle1.vy;
+            paddle1.bonus = data.paddle1.bonus; // Обновляем бонус
             paddle2.targetX = data.paddle2.x;
             paddle2.targetY = data.paddle2.y;
             paddle2.score = data.paddle2.score;
             paddle2.vx = data.paddle2.vx;
             paddle2.vy = data.paddle2.vy;
+            paddle2.bonus = data.paddle2.bonus; // Обновляем бонус
             ball = {
               x: data.ball.x,
               y: data.ball.y,
               dx: data.ball.dx,
               dy: data.ball.dy,
             };
-            bonuses = data.bonuses || []; // Обновляем бонусы
+            bonuses = data.bonuses || [];
             servingPlayer = data.servingPlayer;
             serveTimer = data.serveTimer;
             gameTimer = data.gameTimer;
@@ -340,7 +342,6 @@
                     : `Счёт: ${paddle1.score} - ${paddle2.score}`;
               }, 2000);
             }
-            // Новый код: обработка получения бонуса
             if (data.bonusCollected) {
               document.getElementById(
                 "status"
@@ -429,7 +430,6 @@
           line(0, y, width, y);
         }
 
-        // Мерцающие жёлтые ворота в стиле киберпанк
         let neonAlpha = map(sin(frameCount * 0.05), -1, 1, 100, 255);
         stroke(255, 255, 0, neonAlpha);
         strokeWeight(13);
@@ -440,15 +440,15 @@
         strokeWeight(2);
         line(0, height / 2, width, height / 2);
 
-        // Отрисовка бонусов
+        // Отрисовка бонусов (увеличенный размер 2x2 клетки)
         bonuses.forEach((bonus) => {
           if (bonus.type === "burning_boot") {
             image(
               bonusImage,
-              bonus.x * width - width / 30 / 2,
-              bonus.y * height - height / 20 / 2,
-              width / 30,
-              height / 20
+              bonus.x * width - width / 15, // Центрируем по X (2/30)
+              bonus.y * height - height / 10, // Центрируем по Y (2/20)
+              (2 * width) / 30, // Ширина 2 клетки
+              (2 * height) / 20 // Высота 2 клетки
             );
           }
         });
@@ -460,7 +460,14 @@
         paddle2.y = lerp(paddle2.y, paddle2.targetY, lerpFactor);
 
         noStroke();
-        // Ракетка игрока 1 (синяя)
+        // Ракетка игрока 1 (синяя) с подсветкой при бонусе
+        if (paddle1.bonus && paddle1.bonus.type === "burning_boot") {
+          let pulseAlpha = map(sin(frameCount * 0.1), -1, 1, 150, 255);
+          stroke(255, 69, 0, pulseAlpha); // Оранжевая подсветка
+          strokeWeight(6);
+        } else {
+          noStroke();
+        }
         fill(0, 102, 255);
         rect(
           constrain(paddle1.x * width, 0, width - paddleWidth * width),
@@ -473,7 +480,14 @@
           paddleHeight * height,
           5
         );
-        // Ракетка игрока 2 (красная)
+        // Ракетка игрока 2 (красная) с подсветкой при бонусе
+        if (paddle2.bonus && paddle2.bonus.type === "burning_boot") {
+          let pulseAlpha = map(sin(frameCount * 0.1), -1, 1, 150, 255);
+          stroke(255, 69, 0, pulseAlpha); // Оранжевая подсветка
+          strokeWeight(6);
+        } else {
+          noStroke();
+        }
         fill(255, 0, 0);
         rect(
           constrain(paddle2.x * width, 0, width - paddleWidth * width),

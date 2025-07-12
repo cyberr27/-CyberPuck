@@ -46,10 +46,9 @@ function normalizeSpeed(dx, dy, targetSpeed) {
   return { dx: dx * factor, dy: dy * factor };
 }
 
-// Новый код: проверка столкновения мяча с бонусом
 function checkBonusCollision(ball, bonus, ballRadius) {
-  const cellWidth = 1 / 30; // Ширина клетки
-  const cellHeight = 1 / 20; // Высота клетки
+  const cellWidth = 2 / 30; // Увеличенная ширина бонуса (2 клетки)
+  const cellHeight = 2 / 20; // Увеличенная высота бонуса (2 клетки)
   return (
     ball.x + ballRadius >= bonus.x - cellWidth / 2 &&
     ball.x - ballRadius <= bonus.x + cellWidth / 2 &&
@@ -71,11 +70,10 @@ let gameState = {
   hitTimer: 7,
   lastPing: new Map(),
   newGameRequests: new Set(),
-  bonuses: [], // Массив активных бонусов
-  bonusTimer: 30, // Таймер для появления первого бонуса
+  bonuses: [],
+  bonusTimer: 30,
 };
 
-// Список возможных бонусов
 const bonusTypes = ["burning_boot"];
 
 function spawnBonus() {
@@ -83,17 +81,17 @@ function spawnBonus() {
   const cellHeight = 1 / 20;
   const centerX = 0.5;
   const centerY = 0.5;
-  const rangeX = 3 * cellWidth;
-  const rangeY = 3 * cellHeight;
+  const rangeX = 3 * cellWidth; // 3 клетки влево и вправо от центра
+  const rangeY = 3 * cellHeight; // 3 клетки вверх и вниз от центра
 
-  const gridX = Math.floor(Math.random() * 7) - 3;
-  const gridY = Math.floor(Math.random() * 7) - 3;
-  const bonusX = centerX + gridX * cellWidth;
+  // Ограничиваем X от 12 до 18 клеток (0.4 до 0.6 в нормализованных координатах)
+  const gridX = Math.floor(Math.random() * 7) - 3; // -3 до +3 клетки
+  const gridY = Math.floor(Math.random() * 7) - 3; // -3 до +3 клетки
+  const bonusX = constrain(centerX + gridX * cellWidth, 0.4, 0.6); // Ограничение по X
   const bonusY = centerY + gridY * cellHeight;
 
   const bonusType = bonusTypes[Math.floor(Math.random() * bonusTypes.length)];
 
-  // Очищаем массив бонусов и добавляем новый
   gameState.bonuses = [
     {
       x: bonusX,
@@ -105,20 +103,19 @@ function spawnBonus() {
 
 function applyBonus(player, bonusType) {
   if (bonusType === "burning_boot") {
-    player.bonus = { type: "burning_boot", hits: 1 }; // Один удар с бонусом
+    player.bonus = { type: "burning_boot", hits: 1 };
   }
 }
 
 function updateGame() {
   if (gameState.status !== "playing") return;
 
-  // Обновление таймера бонусов
-  if (gameState.gameTimer <= 300 - 30) {
-    // Первое появление бонуса на 30-й секунде
+  // Появление бонуса через 30 секунд после начала
+  if (gameState.gameTimer <= 270) {
     gameState.bonusTimer -= 1 / 60;
     if (gameState.bonusTimer <= 0) {
-      spawnBonus(); // Создаём или заменяем бонус
-      gameState.bonusTimer = 30; // Сбрасываем таймер
+      spawnBonus();
+      gameState.bonusTimer = 30;
     }
   }
 
@@ -195,7 +192,6 @@ function updateGame() {
   let baseSpeed = 0.008;
   let maxSpeed = 0.015;
 
-  // Проверка столкновения с бонусами
   let bonusCollected = null;
   gameState.bonuses = gameState.bonuses.filter((bonus) => {
     if (checkBonusCollision(gameState.ball, bonus, ballRadius)) {
@@ -207,8 +203,8 @@ function updateGame() {
           playerId: gameState.lastHitPlayer,
           bonusType: bonus.type,
         };
-        gameState.bonusTimer = 30; // Сбрасываем таймер при сборе бонуса
-        return false; // Удаляем бонус
+        gameState.bonusTimer = 30;
+        return false;
       }
     }
     return true;
@@ -314,10 +310,10 @@ function updateGame() {
         gameState.paddle1.bonus &&
         gameState.paddle1.bonus.type === "burning_boot"
       ) {
-        speed *= 1.7; // Ускорение на 70%
+        speed *= 2.2; // Ускорение на 120% (70% + 50%)
         gameState.paddle1.bonus.hits -= 1;
         if (gameState.paddle1.bonus.hits <= 0) {
-          gameState.paddle1.bonus = null; // Удаляем бонус после использования
+          gameState.paddle1.bonus = null;
         }
       }
       gameState.ball.dx = hitPos * 0.004 + gameState.paddle1.vx * 0.5;
@@ -371,10 +367,10 @@ function updateGame() {
         gameState.paddle2.bonus &&
         gameState.paddle2.bonus.type === "burning_boot"
       ) {
-        speed *= 1.7; // Ускорение на 70%
+        speed *= 2.2; // Ускорение на 120% (70% + 50%)
         gameState.paddle2.bonus.hits -= 1;
         if (gameState.paddle2.bonus.hits <= 0) {
-          gameState.paddle2.bonus = null; // Удаляем бонус после использования
+          gameState.paddle2.bonus = null;
         }
       }
       gameState.ball.dx = hitPos * 0.004 + gameState.paddle2.vx * 0.5;
@@ -447,7 +443,7 @@ function startGame() {
   gameState.lastHitPlayer = null;
   gameState.hitTimer = 7;
   gameState.bonuses = [];
-  gameState.bonusTimer = 30; // Сбрасываем таймер бонусов
+  gameState.bonusTimer = 30;
   resetBall(true);
 
   broadcast({
@@ -489,7 +485,7 @@ function resetGame() {
   gameState.lastHitPlayer = null;
   gameState.hitTimer = 7;
   gameState.bonuses = [];
-  gameState.bonusTimer = 30; // Сбрасываем таймер бонусов
+  gameState.bonusTimer = 30;
   gameState.newGameRequests.clear();
 }
 
