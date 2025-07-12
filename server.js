@@ -79,29 +79,28 @@ let gameState = {
 const bonusTypes = ["burning_boot"];
 
 function spawnBonus() {
-  // Центр поля: x = 0.5, y = 0.5
-  // Три клетки от центра: ±3 клетки по X (1/30 * 3 = 0.1), ±3 клетки по Y (1/20 * 3 = 0.15)
   const cellWidth = 1 / 30;
   const cellHeight = 1 / 20;
   const centerX = 0.5;
   const centerY = 0.5;
-  const rangeX = 3 * cellWidth; // ±0.1
-  const rangeY = 3 * cellHeight; // ±0.15
+  const rangeX = 3 * cellWidth;
+  const rangeY = 3 * cellHeight;
 
-  // Случайные координаты в пределах трёх клеток от центра
-  const gridX = Math.floor(Math.random() * 7) - 3; // От -3 до +3 клеток
-  const gridY = Math.floor(Math.random() * 7) - 3; // От -3 до +3 клеток
+  const gridX = Math.floor(Math.random() * 7) - 3;
+  const gridY = Math.floor(Math.random() * 7) - 3;
   const bonusX = centerX + gridX * cellWidth;
   const bonusY = centerY + gridY * cellHeight;
 
-  // Выбираем случайный бонус из списка
   const bonusType = bonusTypes[Math.floor(Math.random() * bonusTypes.length)];
 
-  gameState.bonuses.push({
-    x: bonusX,
-    y: bonusY,
-    type: bonusType,
-  });
+  // Очищаем массив бонусов и добавляем новый
+  gameState.bonuses = [
+    {
+      x: bonusX,
+      y: bonusY,
+      type: bonusType,
+    },
+  ];
 }
 
 function applyBonus(player, bonusType) {
@@ -118,11 +117,8 @@ function updateGame() {
     // Первое появление бонуса на 30-й секунде
     gameState.bonusTimer -= 1 / 60;
     if (gameState.bonusTimer <= 0) {
-      const numBonuses = Math.random() < 0.5 ? 1 : 2; // 1 или 2 бонуса
-      for (let i = 0; i < numBonuses; i++) {
-        spawnBonus();
-      }
-      gameState.bonusTimer = 30; // Сброс таймера на следующие 30 секунд
+      spawnBonus(); // Создаём или заменяем бонус
+      gameState.bonusTimer = 30; // Сбрасываем таймер
     }
   }
 
@@ -211,6 +207,7 @@ function updateGame() {
           playerId: gameState.lastHitPlayer,
           bonusType: bonus.type,
         };
+        gameState.bonusTimer = 30; // Сбрасываем таймер при сборе бонуса
         return false; // Удаляем бонус
       }
     }
@@ -450,7 +447,7 @@ function startGame() {
   gameState.lastHitPlayer = null;
   gameState.hitTimer = 7;
   gameState.bonuses = [];
-  gameState.bonusTimer = 30;
+  gameState.bonusTimer = 30; // Сбрасываем таймер бонусов
   resetBall(true);
 
   broadcast({
@@ -492,7 +489,7 @@ function resetGame() {
   gameState.lastHitPlayer = null;
   gameState.hitTimer = 7;
   gameState.bonuses = [];
-  gameState.bonusTimer = 30;
+  gameState.bonusTimer = 30; // Сбрасываем таймер бонусов
   gameState.newGameRequests.clear();
 }
 
