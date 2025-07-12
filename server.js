@@ -142,7 +142,7 @@ function applyBonus(player, bonusType) {
 }
 
 function updateGame() {
-  let wallHit = false; // Объявляем в начале
+  let wallHit = false;
   let ballRadius = 0.01;
   let paddleWidth = 0.0667;
   let paddleHeight = 0.0333;
@@ -199,8 +199,10 @@ function updateGame() {
   }
 
   let goalkeeperHit = false;
+
+  // Проверка столкновения с воротами (только в зоне ворот: x от 0.25 до 0.75)
   if (
-    gameState.ball.y < 0.01 &&
+    gameState.ball.y <= 0.01 &&
     gameState.ball.x >= 0.25 &&
     gameState.ball.x <= 0.75
   ) {
@@ -233,9 +235,10 @@ function updateGame() {
         bonuses: gameState.bonuses,
         goal: 1,
       });
+      return; // Выходим, чтобы избежать дальнейшей обработки
     }
   } else if (
-    gameState.ball.y > 1 - 0.01 &&
+    gameState.ball.y >= 1 - 0.01 &&
     gameState.ball.x >= 0.25 &&
     gameState.ball.x <= 0.75
   ) {
@@ -268,20 +271,30 @@ function updateGame() {
         bonuses: gameState.bonuses,
         goal: 2,
       });
+      return; // Выходим, чтобы избежать дальнейшей обработки
     }
-  } else if (gameState.ball.y <= 0.01 || gameState.ball.y >= 1 - 0.01) {
+  }
+
+  // Проверка столкновения с верхней/нижней стенкой (вне зоны ворот)
+  if (
+    (gameState.ball.y <= 0.01 &&
+      (gameState.ball.x < 0.25 || gameState.ball.x > 0.75)) ||
+    (gameState.ball.y >= 1 - 0.01 &&
+      (gameState.ball.x < 0.25 || gameState.ball.x > 0.75))
+  ) {
     gameState.ball.dy *= -1;
     gameState.ball.y = constrain(gameState.ball.y, 0.01, 1 - 0.01);
-    const normalized = normalizeSpeed(
-      gameState.ball.dx,
-      gameState.ball.dy,
-      baseSpeed
-    );
-    gameState.ball.dx = normalized.dx;
-    gameState.ball.dy = normalized.dy;
     wallHit = true;
   }
 
+  // Проверка столкновения с боковыми стенками
+  if (gameState.ball.x <= 0.01 || gameState.ball.x >= 1 - 0.01) {
+    gameState.ball.dx *= -1;
+    gameState.ball.x = constrain(gameState.ball.x, 0.01, 1 - 0.01);
+    wallHit = true;
+  }
+
+  // Проверка на фол при неподвижном мяче
   if (gameState.ball.dx === 0 && gameState.ball.dy === 0) {
     gameState.serveTimer -= 1 / 60;
     if (gameState.serveTimer <= 0) {
@@ -325,9 +338,11 @@ function updateGame() {
     }
   }
 
+  // Обновление позиции мяча
   gameState.ball.x += gameState.ball.dx;
   gameState.ball.y += gameState.ball.dy;
 
+  // Проверка столкновения с бонусами
   let bonusCollected = null;
   gameState.bonuses = gameState.bonuses.filter((bonus) => {
     if (checkBonusCollision(gameState.ball, bonus, ballRadius)) {
@@ -346,70 +361,7 @@ function updateGame() {
     return true;
   });
 
-  if (gameState.ball.x <= 0.01 || gameState.ball.x >= 1 - 0.01) {
-    gameState.ball.dx *= -1;
-    gameState.ball.x = constrain(gameState.ball.x, 0.01, 1 - 0.01);
-    const normalized = normalizeSpeed(
-      gameState.ball.dx,
-      gameState.ball.dy,
-      baseSpeed
-    );
-    gameState.ball.dx = normalized.dx;
-    gameState.ball.dy = normalized.dy;
-    wallHit = true;
-  }
-
-  if (
-    gameState.ball.y < 0.01 &&
-    gameState.ball.x >= 0.25 &&
-    gameState.ball.x <= 0.75
-  ) {
-    gameState.paddle1.score += 1;
-    gameState.servingPlayer = 2;
-    resetBall(false);
-    broadcast({
-      type: "update",
-      paddle1: gameState.paddle1,
-      paddle2: gameState.paddle2,
-      ball: gameState.ball,
-      servingPlayer: gameState.servingPlayer,
-      serveTimer: gameState.serveTimer,
-      gameTimer: gameState.gameTimer,
-      bonuses: gameState.bonuses,
-      goal: 1,
-    });
-  } else if (
-    gameState.ball.y > 1 - 0.01 &&
-    gameState.ball.x >= 0.25 &&
-    gameState.ball.x <= 0.75
-  ) {
-    gameState.paddle2.score += 1;
-    gameState.servingPlayer = 1;
-    resetBall(false);
-    broadcast({
-      type: "update",
-      paddle1: gameState.paddle1,
-      paddle2: gameState.paddle2,
-      ball: gameState.ball,
-      servingPlayer: gameState.servingPlayer,
-      serveTimer: gameState.serveTimer,
-      gameTimer: gameState.gameTimer,
-      bonuses: gameState.bonuses,
-      goal: 2,
-    });
-  } else if (gameState.ball.y <= 0.01 || gameState.ball.y >= 1 - 0.01) {
-    gameState.ball.dy *= -1;
-    gameState.ball.y = constrain(gameState.ball.y, 0.01, 1 - 0.01);
-    const normalized = normalizeSpeed(
-      gameState.ball.dx,
-      gameState.ball.dy,
-      baseSpeed
-    );
-    gameState.ball.dx = normalized.dx;
-    gameState.ball.dy = normalized.dy;
-    wallHit = true;
-  }
-
+  // Проверка столкновения с ракетками
   let hit = false;
   let collision1 = checkPaddleCollision(
     gameState.ball,
