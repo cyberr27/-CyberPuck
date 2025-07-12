@@ -6,6 +6,10 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
+// Определяем baseSpeed и maxSpeed в глобальной области видимости
+const baseSpeed = 0.008;
+const maxSpeed = 0.015;
+
 app.use(express.static("public"));
 
 function constrain(value, min, max) {
@@ -323,8 +327,6 @@ function updateGame() {
   let ballRadius = 0.01;
   let paddleWidth = 0.0667;
   let paddleHeight = 0.0333;
-  let baseSpeed = 0.008;
-  let maxSpeed = 0.015;
 
   let bonusCollected = null;
   gameState.bonuses = gameState.bonuses.filter((bonus) => {
