@@ -165,6 +165,7 @@
       const moveSendInterval = 1000 / 30;
       let backgroundImg;
       let bonusImage;
+      let lightningGoalkeeperImage;
       let bonuses = [];
 
       function preload() {
@@ -179,6 +180,7 @@
           (err) => console.error("Ошибка загрузки фоновой музыки:", err)
         );
         bonusImage = loadImage("/img/burning_boot.png");
+        lightningGoalkeeperImage = loadImage("/img/lightning_goalkeeper.png"); // Новое изображение
       }
 
       function isMobileDevice() {
@@ -343,9 +345,13 @@
               }, 2000);
             }
             if (data.bonusCollected) {
-              document.getElementById(
-                "status"
-              ).innerText = `Игрок ${data.bonusCollected.playerId} получил бонус: ${data.bonusCollected.bonusType}!`;
+              document.getElementById("status").innerText = `Игрок ${
+                data.bonusCollected.playerId
+              } получил бонус: ${
+                data.bonusCollected.bonusType === "burning_boot"
+                  ? "Огненная бутса"
+                  : "Молниеносный вратарь"
+              }!`;
               setTimeout(() => {
                 document.getElementById("status").innerText =
                   playerId === 2
@@ -440,18 +446,56 @@
         strokeWeight(2);
         line(0, height / 2, width, height / 2);
 
-        // Отрисовка бонусов (увеличенный размер 2x2 клетки)
+        // Отрисовка бонусов на поле
         bonuses.forEach((bonus) => {
           if (bonus.type === "burning_boot") {
             image(
               bonusImage,
-              bonus.x * width - width / 15, // Центрируем по X (2/30)
-              bonus.y * height - height / 10, // Центрируем по Y (2/20)
-              (2 * width) / 30, // Ширина 2 клетки
-              (2 * height) / 20 // Высота 2 клетки
+              bonus.x * width - width / 15,
+              bonus.y * height - height / 10,
+              (2 * width) / 30,
+              (2 * height) / 20
+            );
+          } else if (bonus.type === "lightning_goalkeeper") {
+            image(
+              lightningGoalkeeperImage,
+              bonus.x * width - width / 15,
+              bonus.y * height - height / 10,
+              (2 * width) / 30,
+              (2 * height) / 20
             );
           }
         });
+
+        // Отрисовка активного "Молниеносного вратаря"
+        if (paddle1.bonus && paddle1.bonus.type === "lightning_goalkeeper") {
+          let t = (sin(frameCount * 0.2) + 1) / 2; // Быстрое движение от 0.25 до 0.75
+          let goalkeeperX = lerp(0.25, 0.75, t);
+          let pulseAlpha = map(sin(frameCount * 0.1), -1, 1, 150, 255);
+          stroke(255, 255, 0, pulseAlpha); // Желтая подсветка
+          strokeWeight(6);
+          image(
+            lightningGoalkeeperImage,
+            goalkeeperX * width - width / 60, // Центрируем (1/30 ширины)
+            height - height / 40, // У ворот игрока 1
+            width / 30,
+            height / 20
+          );
+        }
+        if (paddle2.bonus && paddle2.bonus.type === "lightning_goalkeeper") {
+          let t = (sin(frameCount * 0.2) + 1) / 2; // Быстрое движение от 0.25 до 0.75
+          let goalkeeperX = lerp(0.25, 0.75, t);
+          let pulseAlpha = map(sin(frameCount * 0.1), -1, 1, 150, 255);
+          stroke(255, 255, 0, pulseAlpha); // Желтая подсветка
+          strokeWeight(6);
+          image(
+            lightningGoalkeeperImage,
+            goalkeeperX * width - width / 60,
+            0, // У ворот игрока 2 (вверху для игрока 1, но инверсия учтена)
+            width / 30,
+            height / 20
+          );
+        }
 
         const lerpFactor = 0.2;
         paddle1.x = lerp(paddle1.x, paddle1.targetX, lerpFactor);
@@ -464,6 +508,13 @@
         if (paddle1.bonus && paddle1.bonus.type === "burning_boot") {
           let pulseAlpha = map(sin(frameCount * 0.1), -1, 1, 150, 255);
           stroke(255, 69, 0, pulseAlpha); // Оранжевая подсветка
+          strokeWeight(6);
+        } else if (
+          paddle1.bonus &&
+          paddle1.bonus.type === "lightning_goalkeeper"
+        ) {
+          let pulseAlpha = map(sin(frameCount * 0.1), -1, 1, 150, 255);
+          stroke(255, 255, 0, pulseAlpha); // Желтая подсветка
           strokeWeight(6);
         } else {
           noStroke();
@@ -484,6 +535,13 @@
         if (paddle2.bonus && paddle2.bonus.type === "burning_boot") {
           let pulseAlpha = map(sin(frameCount * 0.1), -1, 1, 150, 255);
           stroke(255, 69, 0, pulseAlpha); // Оранжевая подсветка
+          strokeWeight(6);
+        } else if (
+          paddle2.bonus &&
+          paddle2.bonus.type === "lightning_goalkeeper"
+        ) {
+          let pulseAlpha = map(sin(frameCount * 0.1), -1, 1, 150, 255);
+          stroke(255, 255, 0, pulseAlpha); // Желтая подсветка
           strokeWeight(6);
         } else {
           noStroke();

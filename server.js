@@ -39,6 +39,34 @@ function checkPaddleCollision(
   return { hit: false, hitPos: 0, speed: 0 };
 }
 
+function checkGoalkeeperCollision(ball, paddle, playerId, baseSpeed, maxSpeed) {
+  if (!paddle.bonus || paddle.bonus.type !== "lightning_goalkeeper") {
+    return { hit: false, speed: 0 };
+  }
+  const t = (Math.sin(Date.now() * 0.012) + 1) / 2; // Синхронное движение с клиентом
+  const goalkeeperX = 0.25 + t * (0.75 - 0.25);
+  const goalkeeperWidth = 1 / 30; // Размер молнии (1 клетка)
+  const goalkeeperHeight = 1 / 20;
+  const goalkeeperY = playerId === 1 ? 0.99 : 0.01; // У ворот
+  const ballRadius = 0.01;
+
+  if (
+    ball.x + ballRadius >= goalkeeperX - goalkeeperWidth / 2 &&
+    ball.x - ballRadius <= goalkeeperX + goalkeeperWidth / 2 &&
+    ball.y + ballRadius >= goalkeeperY - goalkeeperHeight / 2 &&
+    ball.y - ballRadius <= goalkeeperY + goalkeeperHeight / 2
+  ) {
+    let speed = Math.min(baseSpeed * 2.2 * 0.7, maxSpeed); // Скорость на 30% ниже, чем у burning_boot
+    const hitPos = (ball.x - goalkeeperX) / (goalkeeperWidth / 2);
+    const dx = hitPos * 0.004;
+    const dy = playerId === 1 ? -speed : speed;
+    const normalized = normalizeSpeed(dx, dy, speed);
+    paddle.bonus = null; // Деактивация бонуса после отбивания
+    return { hit: true, dx: normalized.dx, dy: normalized.dy, speed };
+  }
+  return { hit: false, speed: 0 };
+}
+
 function normalizeSpeed(dx, dy, targetSpeed) {
   const currentSpeed = Math.sqrt(dx * dx + dy * dy);
   if (currentSpeed === 0) return { dx, dy };
@@ -74,7 +102,7 @@ let gameState = {
   bonusTimer: 30,
 };
 
-const bonusTypes = ["burning_boot"];
+const bonusTypes = ["burning_boot", "lightning_goalkeeper"];
 
 function spawnBonus() {
   const cellWidth = 1 / 30;
@@ -104,11 +132,33 @@ function spawnBonus() {
 function applyBonus(player, bonusType) {
   if (bonusType === "burning_boot") {
     player.bonus = { type: "burning_boot", hits: 1 };
+  } else if (bonusType === "lightning_goalkeeper") {
+    player.bonus = { type: "lightning_goalkeeper", duration: 5 }; // 5 секунд
   }
 }
 
 function updateGame() {
   if (gameState.status !== "playing") return;
+
+  // Обновление таймера бонуса "Молниеносный вратарь"
+  if (
+    gameState.paddle1.bonus &&
+    gameState.paddle1.bonus.type === "lightning_goalkeeper"
+  ) {
+    gameState.paddle1.bonus.duration -= 1 / 60;
+    if (gameState.paddle1.bonus.duration <= 0) {
+      gameState.paddle1.bonus = null;
+    }
+  }
+  if (
+    gameState.paddle2.bonus &&
+    gameState.paddle2.bonus.type === "lightning_goalkeeper"
+  ) {
+    gameState.paddle2.bonus.duration -= 1 / 60;
+    if (gameState.paddle2.bonus.duration <= 0) {
+      gameState.paddle2.bonus = null;
+    }
+  }
 
   // Появление бонуса через 30 секунд после начала
   if (gameState.gameTimer <= 270) {
@@ -137,6 +187,90 @@ function updateGame() {
       finalScore: `${gameState.paddle1.score} - ${gameState.paddle2.score}`,
     });
     return;
+  }
+
+  let goalkeeperHit = false;
+  if (
+    gameState.ball.y < 0.01 &&
+    gameState.ball.x >= 0.25 &&
+    gameState.ball.x <= 0.75
+  ) {
+    const goalkeeperCollision = checkGoalkeeperCollision(
+      gameState.ball,
+      gameState.paddle1,
+      1,
+      baseSpeed,
+      maxSpeed
+    );
+    if (goalkeeperCollision.hit) {
+      gameState.ball.dx = goalkeeperCollision.dx;
+      gameState.ball.dy = goalkeeperCollision.dy;
+      gameState.ball.y = 0.01 + ballRadius;
+      gameState.lastHitPlayer = 1;
+      gameState.hitTimer = 7;
+      goalkeeperHit = true;
+    } else {
+      gameState.paddle1.score += 1;
+      gameState.servingPlayer = 2;
+      resetBall(false);
+      broadcast({
+        type: "update",
+        paddle1: gameState.paddle1,
+        paddle2: gameState.paddle2,
+        ball: gameState.ball,
+        servingPlayer: gameState.servingPlayer,
+        serveTimer: gameState.serveTimer,
+        gameTimer: gameState.gameTimer,
+        bonuses: gameState.bonuses,
+        goal: 1,
+      });
+    }
+  } else if (
+    gameState.ball.y > 1 - 0.01 &&
+    gameState.ball.x >= 0.25 &&
+    gameState.ball.x <= 0.75
+  ) {
+    const goalkeeperCollision = checkGoalkeeperCollision(
+      gameState.ball,
+      gameState.paddle2,
+      2,
+      baseSpeed,
+      maxSpeed
+    );
+    if (goalkeeperCollision.hit) {
+      gameState.ball.dx = goalkeeperCollision.dx;
+      gameState.ball.dy = goalkeeperCollision.dy;
+      gameState.ball.y = 1 - 0.01 - ballRadius;
+      gameState.lastHitPlayer = 2;
+      gameState.hitTimer = 7;
+      goalkeeperHit = true;
+    } else {
+      gameState.paddle2.score += 1;
+      gameState.servingPlayer = 1;
+      resetBall(false);
+      broadcast({
+        type: "update",
+        paddle1: gameState.paddle1,
+        paddle2: gameState.paddle2,
+        ball: gameState.ball,
+        servingPlayer: gameState.servingPlayer,
+        serveTimer: gameState.serveTimer,
+        gameTimer: gameState.gameTimer,
+        bonuses: gameState.bonuses,
+        goal: 2,
+      });
+    }
+  } else if (gameState.ball.y <= 0.01 || gameState.ball.y >= 1 - 0.01) {
+    gameState.ball.dy *= -1;
+    gameState.ball.y = constrain(gameState.ball.y, 0.01, 1 - 0.01);
+    const normalized = normalizeSpeed(
+      gameState.ball.dx,
+      gameState.ball.dy,
+      baseSpeed
+    );
+    gameState.ball.dx = normalized.dx;
+    gameState.ball.dy = normalized.dy;
+    wallHit = true;
   }
 
   if (gameState.ball.dx === 0 && gameState.ball.dy === 0) {
@@ -401,6 +535,7 @@ function updateGame() {
     hit,
     wallHit,
     bonusCollected,
+    goalkeeperHit,
   });
 }
 
