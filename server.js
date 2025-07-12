@@ -47,11 +47,11 @@ function checkGoalkeeperCollision(ball, paddle, playerId, baseSpeed, maxSpeed) {
   if (!paddle.bonus || paddle.bonus.type !== "lightning_goalkeeper") {
     return { hit: false, speed: 0 };
   }
-  const t = (Math.sin(Date.now() * 0.012) + 1) / 2; // Синхронное движение с клиентом
+  const t = (Math.sin(Date.now() * 0.012) + 1) / 2;
   const goalkeeperX = 0.25 + t * (0.75 - 0.25);
-  const goalkeeperWidth = 1 / 30; // Размер молнии (1 клетка)
-  const goalkeeperHeight = 1 / 20;
-  const goalkeeperY = playerId === 1 ? 0.99 : 0.01; // У ворот
+  const goalkeeperWidth = 1.5 / 30; // Увеличено
+  const goalkeeperHeight = 1.5 / 20; // Увеличено
+  const goalkeeperY = playerId === 1 ? 0.99 : 0.01;
   const ballRadius = 0.01;
 
   if (
@@ -60,12 +60,12 @@ function checkGoalkeeperCollision(ball, paddle, playerId, baseSpeed, maxSpeed) {
     ball.y + ballRadius >= goalkeeperY - goalkeeperHeight / 2 &&
     ball.y - ballRadius <= goalkeeperY + goalkeeperHeight / 2
   ) {
-    let speed = Math.min(baseSpeed * 2.2 * 0.7, maxSpeed); // Скорость на 30% ниже, чем у burning_boot
+    let speed = Math.min(baseSpeed * 2.2 * 0.7, maxSpeed);
     const hitPos = (ball.x - goalkeeperX) / (goalkeeperWidth / 2);
     const dx = hitPos * 0.004;
     const dy = playerId === 1 ? -speed : speed;
     const normalized = normalizeSpeed(dx, dy, speed);
-    paddle.bonus = null; // Деактивация бонуса после отбивания
+    paddle.bonus = null; // Исчезает после касания
     return { hit: true, dx: normalized.dx, dy: normalized.dy, speed };
   }
   return { hit: false, speed: 0 };
@@ -137,7 +137,7 @@ function applyBonus(player, bonusType) {
   if (bonusType === "burning_boot") {
     player.bonus = { type: "burning_boot", hits: 1 };
   } else if (bonusType === "lightning_goalkeeper") {
-    player.bonus = { type: "lightning_goalkeeper", duration: 5 }; // 5 секунд
+    player.bonus = { type: "lightning_goalkeeper" };
   }
 }
 

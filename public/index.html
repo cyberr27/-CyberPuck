@@ -448,52 +448,44 @@
 
         // Отрисовка бонусов на поле
         bonuses.forEach((bonus) => {
+          let bonusX = bonus.x * width - width / 15;
+          let bonusY = bonus.y * height - height / 10;
+          let bonusWidth = (2 * width) / 30;
+          let bonusHeight = (2 * height) / 20;
           if (bonus.type === "burning_boot") {
-            image(
-              bonusImage,
-              bonus.x * width - width / 15,
-              bonus.y * height - height / 10,
-              (2 * width) / 30,
-              (2 * height) / 20
-            );
+            image(bonusImage, bonusX, bonusY, bonusWidth, bonusHeight);
           } else if (bonus.type === "lightning_goalkeeper") {
             image(
               lightningGoalkeeperImage,
-              bonus.x * width - width / 15,
-              bonus.y * height - height / 10,
-              (2 * width) / 30,
-              (2 * height) / 20
+              bonusX,
+              bonusY,
+              bonusWidth,
+              bonusHeight
             );
           }
         });
 
         // Отрисовка активного "Молниеносного вратаря"
         if (paddle1.bonus && paddle1.bonus.type === "lightning_goalkeeper") {
-          let t = (sin(frameCount * 0.2) + 1) / 2; // Быстрое движение от 0.25 до 0.75
+          let t = (sin(millis() * 0.012) + 1) / 2; // Синхронизация с сервером
           let goalkeeperX = lerp(0.25, 0.75, t);
-          let pulseAlpha = map(sin(frameCount * 0.1), -1, 1, 150, 255);
-          stroke(255, 255, 0, pulseAlpha); // Желтая подсветка
-          strokeWeight(6);
           image(
             lightningGoalkeeperImage,
-            goalkeeperX * width - width / 60, // Центрируем (1/30 ширины)
-            height - height / 40, // У ворот игрока 1
-            width / 30,
-            height / 20
+            goalkeeperX * width - (width * 1.5) / 60,
+            height - (height * 1.5) / 40,
+            (width * 1.5) / 30,
+            (height * 1.5) / 20
           );
         }
         if (paddle2.bonus && paddle2.bonus.type === "lightning_goalkeeper") {
-          let t = (sin(frameCount * 0.2) + 1) / 2; // Быстрое движение от 0.25 до 0.75
+          let t = (sin(millis() * 0.012) + 1) / 2;
           let goalkeeperX = lerp(0.25, 0.75, t);
-          let pulseAlpha = map(sin(frameCount * 0.1), -1, 1, 150, 255);
-          stroke(255, 255, 0, pulseAlpha); // Желтая подсветка
-          strokeWeight(6);
           image(
             lightningGoalkeeperImage,
-            goalkeeperX * width - width / 60,
-            0, // У ворот игрока 2 (вверху для игрока 1, но инверсия учтена)
-            width / 30,
-            height / 20
+            goalkeeperX * width - (width * 1.5) / 60,
+            0,
+            (width * 1.5) / 30,
+            (height * 1.5) / 20
           );
         }
 
@@ -507,14 +499,7 @@
         // Ракетка игрока 1 (синяя) с подсветкой при бонусе
         if (paddle1.bonus && paddle1.bonus.type === "burning_boot") {
           let pulseAlpha = map(sin(frameCount * 0.1), -1, 1, 150, 255);
-          stroke(255, 69, 0, pulseAlpha); // Оранжевая подсветка
-          strokeWeight(6);
-        } else if (
-          paddle1.bonus &&
-          paddle1.bonus.type === "lightning_goalkeeper"
-        ) {
-          let pulseAlpha = map(sin(frameCount * 0.1), -1, 1, 150, 255);
-          stroke(255, 255, 0, pulseAlpha); // Желтая подсветка
+          stroke(255, 69, 0, pulseAlpha);
           strokeWeight(6);
         } else {
           noStroke();
@@ -531,17 +516,11 @@
           paddleHeight * height,
           5
         );
-        // Ракетка игрока 2 (красная) с подсветкой при бонусе
+
+        // Ракетка игрока 2
         if (paddle2.bonus && paddle2.bonus.type === "burning_boot") {
           let pulseAlpha = map(sin(frameCount * 0.1), -1, 1, 150, 255);
-          stroke(255, 69, 0, pulseAlpha); // Оранжевая подсветка
-          strokeWeight(6);
-        } else if (
-          paddle2.bonus &&
-          paddle2.bonus.type === "lightning_goalkeeper"
-        ) {
-          let pulseAlpha = map(sin(frameCount * 0.1), -1, 1, 150, 255);
-          stroke(255, 255, 0, pulseAlpha); // Желтая подсветка
+          stroke(255, 69, 0, pulseAlpha);
           strokeWeight(6);
         } else {
           noStroke();
