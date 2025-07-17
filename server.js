@@ -48,26 +48,39 @@ function checkGoalkeeperCollision(ball, paddle, playerId, baseSpeed, maxSpeed) {
     return { hit: false, speed: 0 };
   }
   const t = (Math.sin(Date.now() * 0.012) + 1) / 2;
-  const goalkeeperX = 0.25 + t * (0.75 - 0.25); // Движение вратаря по оси X
-  const goalkeeperWidth = 0.0667; // Размер как у ракетки
-  const goalkeeperHeight = 0.0333; // Размер как у ракетки
-  const goalkeeperY = playerId === 1 ? 0.9333 : 0.0667; // Позиция Y как у ракетки
+  const goalkeeperX = 0.25 + t * (0.75 - 0.25); // Позиция вратаря по X
+  const goalkeeperWidth = 0.0667;
+  const goalkeeperHeight = 0.0333;
+  const goalkeeperY = playerId === 1 ? 0.9333 : 0.0667; // Позиция Y
   const ballRadius = 0.01;
 
+  // Рассчитываем скорость вратаря (производная позиции по времени)
+  const prevT = (Math.sin((Date.now() - 1000 / 60) * 0.012) + 1) / 2;
+  const prevGoalkeeperX = 0.25 + prevT * (0.75 - 0.25);
+  const goalkeeperVx = (goalkeeperX - prevGoalkeeperX) * 60; // Скорость вратаря по X (умножаем на 60, так как обновление 60 FPS)
+
+  // Проверка столкновения
   if (
     ball.x + ballRadius >= goalkeeperX - goalkeeperWidth / 2 &&
     ball.x - ballRadius <= goalkeeperX + goalkeeperWidth / 2 &&
     ball.y + ballRadius >= goalkeeperY - goalkeeperHeight / 2 &&
     ball.y - ballRadius <= goalkeeperY + goalkeeperHeight / 2
   ) {
-    // Вычисляем позицию удара относительно центра вратаря
+    // Позиция удара относительно центра вратаря
     const hitPos = (ball.x - goalkeeperX) / (goalkeeperWidth / 2);
-    let speed = Math.min(baseSpeed * 1.5, maxSpeed); // Скорость отскока
-    let dx = hitPos * 0.004; // Угол отскока по X
-    let dy = playerId === 1 ? -speed : speed; // Направление в сторону противника
-    const normalized = normalizeSpeed(dx, dy, speed);
+    // Относительная скорость мяча и вратаря
+    const relativeVelocityX = ball.dx - goalkeeperVx;
+    const relativeVelocityY = ball.dy;
+    const speed = Math.sqrt(relativeVelocityX ** 2 + relativeVelocityY ** 2);
+    let newSpeed = Math.min(speed * 0.8 + baseSpeed, maxSpeed); // Скорость после удара
+
+    // Угол отскока
+    let dx = hitPos * 0.004 + goalkeeperVx * 0.5; // Учитываем скорость вратаря
+    let dy = playerId === 1 ? -newSpeed : newSpeed; // Направление в сторону противника
+    const normalized = normalizeSpeed(dx, dy, newSpeed);
+
     paddle.bonus = null; // Вратарь исчезает после касания
-    return { hit: true, dx: normalized.dx, dy: normalized.dy, speed };
+    return { hit: true, dx: normalized.dx, dy: normalized.dy, speed: newSpeed };
   }
   return { hit: false, speed: 0 };
 }
@@ -138,7 +151,7 @@ function applyBonus(player, bonusType) {
   if (bonusType === "burning_boot") {
     player.bonus = { type: "burning_boot", hits: 1 };
   } else if (bonusType === "lightning_goalkeeper") {
-    player.bonus = { type: "lightning_goalkeeper" }; // Убрали duration
+    player.bonus = { type: "lightning_goalkeeper", duration: 10 }; // Задаём длительность 10 секунд
   }
 }
 
@@ -296,8 +309,7 @@ function updateGame() {
       });
       return;
     }
-  } 
-  else if (
+  } else if (
     gameState.ball.y >= 1 - 0.01 &&
     gameState.ball.x >= 0.25 &&
     gameState.ball.x <= 0.75
