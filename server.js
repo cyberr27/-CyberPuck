@@ -47,17 +47,19 @@ function checkGoalkeeperCollision(ball, paddle, playerId, baseSpeed, maxSpeed) {
   if (!paddle.bonus || paddle.bonus.type !== "lightning_goalkeeper") {
     return { hit: false, speed: 0 };
   }
-  const t = (Math.sin(Date.now() * 0.012) + 1) / 2;
-  const goalkeeperX = 0.25 + t * (0.75 - 0.25); // Позиция вратаря по X
+  // Синхронизируем движение вратаря по серверному времени
+  const now = Date.now();
+  const t = (Math.sin(now * 0.012) + 1) / 2;
+  const goalkeeperX = 0.25 + t * (0.75 - 0.25);
   const goalkeeperWidth = 0.0667;
   const goalkeeperHeight = 0.0333;
-  const goalkeeperY = playerId === 1 ? 0.9333 : 0.0667; // Позиция Y
+  const goalkeeperY = playerId === 1 ? 0.9333 : 0.0667;
   const ballRadius = 0.01;
 
-  // Рассчитываем скорость вратаря (производная позиции по времени)
-  const prevT = (Math.sin((Date.now() - 1000 / 60) * 0.012) + 1) / 2;
+  // Скорость вратаря по X (центральная разность)
+  const prevT = (Math.sin((now - 16) * 0.012) + 1) / 2;
   const prevGoalkeeperX = 0.25 + prevT * (0.75 - 0.25);
-  const goalkeeperVx = (goalkeeperX - prevGoalkeeperX) * 60; // Скорость вратаря по X (умножаем на 60, так как обновление 60 FPS)
+  const goalkeeperVx = (goalkeeperX - prevGoalkeeperX) / 0.016; // px/ms
 
   // Проверка столкновения
   if (
@@ -72,13 +74,13 @@ function checkGoalkeeperCollision(ball, paddle, playerId, baseSpeed, maxSpeed) {
     const relativeVelocityX = ball.dx - goalkeeperVx;
     const relativeVelocityY = ball.dy;
     const speed = Math.sqrt(relativeVelocityX ** 2 + relativeVelocityY ** 2);
-    let newSpeed = Math.min(speed * 0.8 + baseSpeed, maxSpeed); // Скорость после удара
-
+    // Если вратарь движется быстро, усиливаем отскок
+    let impulse = Math.abs(goalkeeperVx) > 0.01 ? 0.006 : 0.003;
+    let newSpeed = Math.min(speed * 0.7 + baseSpeed + impulse, maxSpeed);
     // Угол отскока
-    let dx = hitPos * 0.004 + goalkeeperVx * 0.5; // Учитываем скорость вратаря
-    let dy = playerId === 1 ? -newSpeed : newSpeed; // Направление в сторону противника
+    let dx = hitPos * 0.006 + goalkeeperVx * 0.7;
+    let dy = playerId === 1 ? -newSpeed : newSpeed;
     const normalized = normalizeSpeed(dx, dy, newSpeed);
-
     paddle.bonus = null; // Вратарь исчезает после касания
     return { hit: true, dx: normalized.dx, dy: normalized.dy, speed: newSpeed };
   }
@@ -410,9 +412,15 @@ function updateGame() {
     }
   }
 
-  // Обновление позиции мяча
+  // Реалистичное обновление позиции мяча с трением
   gameState.ball.x += gameState.ball.dx;
   gameState.ball.y += gameState.ball.dy;
+  // Трение: постепенно замедляем мяч
+  gameState.ball.dx *= 0.995;
+  gameState.ball.dy *= 0.995;
+  // Ограничение минимальной скорости, чтобы мяч не \"залипал\"
+  if (Math.abs(gameState.ball.dx) < 0.0001) gameState.ball.dx = 0;
+  if (Math.abs(gameState.ball.dy) < 0.0001) gameState.ball.dy = 0;
 
   // Проверка столкновения с бонусами
   let bonusCollected = null;
